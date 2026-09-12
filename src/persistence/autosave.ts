@@ -8,7 +8,7 @@ export function initAutosave(debounceMs = 300) {
 
   let timer: ReturnType<typeof setTimeout> | undefined
   return useLabStore.subscribe((next, prev) => {
-    if (next.nodes === prev.nodes && next.edges === prev.edges && next.name === prev.name) return
+    if (next.nodes === prev.nodes && next.edges === prev.edges && next.name === prev.name && next.settings === prev.settings) return
     clearTimeout(timer)
     timer = setTimeout(() => saveProject(next.toProject()), debounceMs)
   })

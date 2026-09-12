@@ -7,6 +7,8 @@ export function Toolbar() {
   const status = useLabStore((s) => s.sim?.status ?? 'idle')
   const packets = useLabStore((s) => s.sim?.packets.length ?? 0)
   const nodeCount = useLabStore((s) => s.nodes.length)
+  const settings = useLabStore((s) => s.settings)
+  const updateSettings = useLabStore((s) => s.updateSettings)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const onExport = () => {
@@ -51,6 +53,26 @@ export function Toolbar() {
       <span className="toolbar__packets" data-testid="packet-count">
         {packets} packets
       </span>
+      <label className="toolbar__field">
+        Speed
+        <select data-testid="cfg-speed" value={settings.speed} onChange={(e) => updateSettings({ speed: Number(e.target.value) })}>
+          {[0.25, 0.5, 1, 2, 4].map((v) => (
+            <option key={v} value={v}>
+              {v}x
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="toolbar__field">
+        Seed
+        <input
+          data-testid="cfg-seed"
+          type="number"
+          value={settings.seed}
+          disabled={status !== 'idle'}
+          onChange={(e) => updateSettings({ seed: Number(e.target.value) || 0 })}
+        />
+      </label>
       <span className="toolbar__spacer" />
       <button data-testid="btn-export" onClick={onExport} disabled={nodeCount === 0}>
         Export

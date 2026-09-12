@@ -1,4 +1,5 @@
 import type { Project } from '../engine/types'
+import { LABEL } from '../engine/defaults'
 
 export const STORAGE_KEY = 'infra-lab:project'
 
@@ -40,7 +41,7 @@ export function importJson(raw: string): Project {
     throw new Error('Not an Infra Lab project')
   }
   for (const n of p.nodes) {
-    if (!['world', 'lb', 'server'].includes(n.type) || typeof n.id !== 'string' || !n.position || !n.config) {
+    if (!(n.type in LABEL) || typeof n.id !== 'string' || !n.position || !n.config) {
       throw new Error(`Invalid node ${JSON.stringify(n)}`)
     }
   }

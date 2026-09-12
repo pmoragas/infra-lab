@@ -31,11 +31,16 @@ function syncToEngine(next: LabStore, prev: LabStore) {
     for (const id of prevById.keys()) if (!nextIds.has(id)) engine.removeNode(id)
   }
   if (next.edges !== prev.edges) {
-    const prevIds = new Set(prev.edges.map((e) => e.id))
+    const prevById = new Map(prev.edges.map((e) => [e.id, e]))
     const nextIds = new Set(next.edges.map((e) => e.id))
-    for (const e of next.edges) if (!prevIds.has(e.id)) engine.addEdge({ id: e.id, source: e.source, target: e.target })
-    for (const id of prevIds) if (!nextIds.has(id)) engine.removeEdge(id)
+    for (const e of next.edges) {
+      const before = prevById.get(e.id)
+      if (!before) engine.addEdge({ id: e.id, source: e.source, target: e.target, config: e.data?.config })
+      else if (before.data?.config !== e.data?.config) engine.updateEdgeConfig(e.id, e.data?.config)
+    }
+    for (const id of prevById.keys()) if (!nextIds.has(id)) engine.removeEdge(id)
   }
+  if (next.settings.speed !== prev.settings.speed) engine.setSpeed(next.settings.speed)
 }
 
 useLabStore.subscribe(syncToEngine)

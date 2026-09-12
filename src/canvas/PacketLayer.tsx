@@ -53,9 +53,10 @@ export function PacketLayer() {
           return (
             <circle
               key={p.id}
-              className={`packet packet--${p.phase}`}
+              className={`packet packet--${p.phase}${p.status === 'error' ? ' packet--error' : ''}`}
               data-testid="packet"
               data-phase={p.phase}
+              data-status={p.status}
               data-to={p.to}
               cx={pos.x}
               cy={pos.y}

@@ -14,7 +14,7 @@ function memStorage() {
 describe('persistence', () => {
   it('save → load is a deep-equal round trip', () => {
     const st = memStorage()
-    const p = wlsProject(3, { algorithm: 'leastConnections', seed: 9 })
+    const p = wlsProject(3, { lb: { algorithm: 'leastConnections' }, seed: 9 })
     saveProject(p, st)
     expect(loadProject(st)).toEqual(p)
   })

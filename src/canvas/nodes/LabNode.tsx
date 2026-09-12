@@ -1,45 +1,66 @@
 import { Handle, Position, type NodeProps } from '@xyflow/react'
-import type { LabFlowNode } from '../../store/useLabStore'
-import { useLabStore } from '../../store/useLabStore'
-import type { LbConfig, ServerConfig, WorldConfig } from '../../engine/types'
+import { useLabStore, type LabFlowNode } from '../../store/useLabStore'
+import { LABEL } from '../../engine/defaults'
+import { summary } from '../../ui/configSchema'
+import type { NodeType, WorldConfig } from '../../engine/types'
 
-const TITLE = { world: 'World', lb: 'Load Balancer', server: 'Server' } as const
+const NO_TARGET = new Set<NodeType>(['world'])
+const NO_SOURCE = new Set<NodeType>(['database', 'thirdParty'])
+const LOAD_TYPES = new Set<NodeType>(['server', 'database', 'consumer', 'queue'])
 
-function subtitle(node: LabFlowNode): string {
-  const c = node.data.config
-  switch (node.type) {
-    case 'world':
-      return (c as WorldConfig).intensity
-    case 'lb':
-      return (c as LbConfig).algorithm
+function statLine(type: NodeType, s: { loadPct: number; hits: number; misses: number; rejected: number; state?: string; queued: number } | undefined) {
+  if (!s) return ''
+  switch (type) {
     case 'server':
-      return `cap ${(c as ServerConfig).capacity} · ${(c as ServerConfig).processingMs}ms`
+    case 'database':
+    case 'consumer':
+      return `${s.loadPct}%${s.queued ? ` · q${s.queued}` : ''}`
+    case 'queue':
+      return `${s.queued} queued`
+    case 'cache':
+    case 'cdn':
+    case 'dns':
+      return `${s.loadPct}% hit`
+    case 'rateLimiter':
+    case 'apiGateway':
+      return `${s.rejected} rejected`
+    case 'circuitBreaker':
+      return s.state ?? 'closed'
+    default:
+      return ''
   }
-  return ''
 }
 
 export function LabNode(props: NodeProps<LabFlowNode>) {
-  const type = props.type as LabFlowNode['type']
-  const serverStats = useLabStore((s) => (type === 'server' ? s.sim?.stats.servers[props.id] : undefined))
-  const loadPct = serverStats?.loadPct ?? 0
-  const overloaded = type === 'server' && loadPct > 80
+  const type = props.type as NodeType
+  const stats = useLabStore((s) => s.sim?.stats.nodes[props.id])
+  const loadPct = stats?.loadPct ?? 0
+  const overloaded = LOAD_TYPES.has(type) && loadPct > 80
+  const down = (props.data.config as { down?: boolean }).down === true
+  const title = type === 'world' ? (props.data.config as WorldConfig).name || LABEL.world : LABEL[type]
 
   return (
     <div
-      className={`lab-node lab-node--${type} ${overloaded ? 'lab-node--overloaded' : ''} ${props.selected ? 'lab-node--selected' : ''}`}
+      className={[
+        'lab-node',
+        `lab-node--${type}`,
+        overloaded ? 'lab-node--overloaded' : '',
+        down ? 'lab-node--down' : '',
+        props.selected ? 'lab-node--selected' : '',
+      ].join(' ')}
       data-testid={`node-${type}`}
       data-node-id={props.id}
       data-load={loadPct}
     >
-      {type !== 'world' && <Handle type="target" position={Position.Left} />}
-      <div className="lab-node__title">{TITLE[type]}</div>
-      <div className="lab-node__sub">{subtitle(props as unknown as LabFlowNode)}</div>
-      {type === 'server' && (
-        <div className="lab-node__load" data-testid="server-load">
-          {loadPct}%
+      {!NO_TARGET.has(type) && <Handle type="target" position={Position.Left} />}
+      <div className="lab-node__title">{title}</div>
+      <div className="lab-node__sub">{summary(type, props.data.config)}</div>
+      {stats && (
+        <div className="lab-node__load" data-testid="node-stat">
+          {statLine(type, stats)}
         </div>
       )}
-      {type !== 'server' && <Handle type="source" position={Position.Right} />}
+      {!NO_SOURCE.has(type) && <Handle type="source" position={Position.Right} />}
     </div>
   )
 }

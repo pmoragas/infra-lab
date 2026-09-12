@@ -1,23 +1,38 @@
-import type { Project, Intensity, Algorithm } from './types'
+import { DEFAULT_CONFIG } from './defaults'
+import type { ConfigByType, LabEdge, LabNode, NodeType, Project } from './types'
 
-/** World → LB → N servers. Shared by tests. */
+/** Small builder for test topologies. */
+export function project(seed = 42) {
+  const nodes: LabNode[] = []
+  const edges: LabEdge[] = []
+  const api = {
+    node<K extends NodeType>(id: string, type: K, config: Partial<ConfigByType[K]> = {}) {
+      nodes.push({ id, type, position: { x: 0, y: 0 }, config: { ...DEFAULT_CONFIG[type], ...config } })
+      return api
+    },
+    edge(source: string, target: string, config?: LabEdge['config']) {
+      edges.push({ id: `e-${source}-${target}`, source, target, config })
+      return api
+    },
+    build(): Project {
+      return { id: 'p', name: 'test', nodes, edges, settings: { seed, speed: 1 } }
+    },
+  }
+  return api
+}
+
+/** World → LB → N servers. */
 export function wlsProject(
   servers = 2,
-  o: { intensity?: Intensity; algorithm?: Algorithm; capacity?: number; processingMs?: number; seed?: number } = {},
+  o: {
+    world?: Partial<ConfigByType['world']>
+    lb?: Partial<ConfigByType['lb']>
+    server?: Partial<ConfigByType['server']>
+    seed?: number
+    edge?: LabEdge['config']
+  } = {},
 ): Project {
-  const nodes: Project['nodes'] = [
-    { id: 'world', type: 'world', position: { x: 0, y: 0 }, config: { intensity: o.intensity ?? 'normal' } },
-    { id: 'lb', type: 'lb', position: { x: 200, y: 0 }, config: { algorithm: o.algorithm ?? 'roundRobin' } },
-  ]
-  const edges: Project['edges'] = [{ id: 'e-world-lb', source: 'world', target: 'lb' }]
-  for (let i = 1; i <= servers; i++) {
-    nodes.push({
-      id: `s${i}`,
-      type: 'server',
-      position: { x: 400, y: i * 100 },
-      config: { capacity: o.capacity ?? 5, processingMs: o.processingMs ?? 300 },
-    })
-    edges.push({ id: `e-lb-s${i}`, source: 'lb', target: `s${i}` })
-  }
-  return { id: 'p', name: 'wls', nodes, edges, settings: { seed: o.seed ?? 42 } }
+  const p = project(o.seed).node('world', 'world', { rps: 2, ...o.world }).node('lb', 'lb', o.lb).edge('world', 'lb', o.edge)
+  for (let i = 1; i <= servers; i++) p.node(`s${i}`, 'server', o.server).edge('lb', `s${i}`, o.edge)
+  return p.build()
 }

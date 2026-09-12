@@ -1,58 +1,106 @@
 import { describe, it, expect } from 'vitest'
-import { createEngine } from '../engine'
 import { wlsProject } from '../fixtures'
+import { boot, run } from '../testUtil'
+import type { ConfigByType } from '../types'
 
-/** Run until `n` packets have been routed by the LB. */
-function routeN(n: number, o: Parameters<typeof wlsProject>[1] = {}, servers = 3) {
-  const e = createEngine(wlsProject(servers, { intensity: 'fast', ...o }), { travelMs: 100 })
-  const order: string[] = []
-  let last = 0
-  for (let i = 0; i < 10_000 && order.length < n; i++) {
-    e.step(50)
-    const s = e.getState()
-    const routed = s.stats.lbs.lb?.routed ?? 0
-    if (routed > last) {
-      // the packet just routed is the newest one heading to a server
-      const p = s.packets.filter((p) => p.from === 'lb' && p.phase === 'request').at(-1)!
-      order.push(p.to)
-      last = routed
-    }
-  }
-  return { order, stats: e.getState().stats }
+const per = (lb: Partial<ConfigByType['lb']>, servers = 3, ms = 3000, world: Partial<ConfigByType['world']> = {}) => {
+  const e = boot(wlsProject(servers, { lb, world: { rps: 10, ...world }, server: { capacity: 100, processingMs: 100 } }))
+  run(e, ms)
+  return e.getState().stats.nodes.lb.perTarget
 }
 
-describe('lb: round robin', () => {
-  it('6 packets, 3 servers → 2 each, in order', () => {
-    const { order, stats } = routeN(6, { algorithm: 'roundRobin' })
-    expect(order).toEqual(['s1', 's2', 's3', 's1', 's2', 's3'])
-    expect(stats.lbs.lb.perServer).toEqual({ s1: 2, s2: 2, s3: 2 })
+describe('lb algorithms', () => {
+  it('round robin spreads evenly', () => {
+    const p = per({ algorithm: 'roundRobin' })
+    const counts = Object.values(p)
+    expect(counts).toHaveLength(3)
+    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1)
   })
-})
 
-describe('lb: random', () => {
-  it('is seeded: same seed same order, hits more than one server', () => {
-    const a = routeN(12, { algorithm: 'random', seed: 3 }).order
-    const b = routeN(12, { algorithm: 'random', seed: 3 }).order
+  it('weighted round robin follows weights', () => {
+    const p = per({ algorithm: 'weightedRoundRobin', weights: { s1: 3, s2: 1, s3: 1 } }, 3, 5000)
+    expect(p.s1).toBeGreaterThanOrEqual(p.s2 * 2.5)
+    expect(Math.abs(p.s2 - p.s3)).toBeLessThanOrEqual(1)
+  })
+
+  it('ip hash keeps a client on the same server', () => {
+    const e = boot(wlsProject(3, { lb: { algorithm: 'ipHash' }, world: { rps: 10, clients: 4 }, server: { capacity: 100 } }))
+    const seen = new Map<string, Set<string>>()
+    for (let i = 0; i < 100; i++) {
+      e.step(50)
+      for (const p of e.getState().packets) {
+        if (p.from !== 'lb' || p.phase !== 'request') continue
+        if (!seen.has(p.clientId)) seen.set(p.clientId, new Set())
+        seen.get(p.clientId)!.add(p.to)
+      }
+    }
+    expect(seen.size).toBeGreaterThan(1)
+    for (const targets of seen.values()) expect(targets.size).toBe(1)
+  })
+
+  it('least connections favours the fast server', () => {
+    const p = wlsProject(2, { lb: { algorithm: 'leastConnections' }, world: { rps: 10 }, server: { capacity: 50 } })
+    ;(p.nodes.find((n) => n.id === 's1')!.config as ConfigByType['server']).processingMs = 2000
+    ;(p.nodes.find((n) => n.id === 's2')!.config as ConfigByType['server']).processingMs = 100
+    const e = boot(p)
+    run(e, 10_000)
+    const t = e.getState().stats.nodes.lb.perTarget
+    expect(t.s2).toBeGreaterThan(t.s1 * 2)
+  })
+
+  it('random is seeded and hits more than one server', () => {
+    const a = per({ algorithm: 'random' })
+    const b = per({ algorithm: 'random' })
     expect(a).toEqual(b)
-    expect(new Set(a).size).toBeGreaterThan(1)
+    expect(Object.keys(a).length).toBeGreaterThan(1)
   })
 })
 
-describe('lb: least connections', () => {
-  it('sends fewer packets to a slow server', () => {
-    const project = wlsProject(2, { algorithm: 'leastConnections', intensity: 'fast', capacity: 50 })
-    // s1 slow, s2 fast
-    ;(project.nodes.find((n) => n.id === 's1')!.config as { processingMs: number }).processingMs = 2000
-    ;(project.nodes.find((n) => n.id === 's2')!.config as { processingMs: number }).processingMs = 100
-    const e = createEngine(project, { travelMs: 100 })
-    for (let i = 0; i < 400; i++) e.step(50) // 20s
-    const per = e.getState().stats.lbs.lb.perServer
-    expect(per.s2).toBeGreaterThan(per.s1 * 2)
+describe('lb health, timeout, retries', () => {
+  it('health check skips a down server', () => {
+    const p = wlsProject(2, { lb: { healthCheck: true }, world: { rps: 10 } })
+    ;(p.nodes.find((n) => n.id === 's1')!.config as ConfigByType['server']).down = true
+    const e = boot(p)
+    run(e, 3000)
+    const t = e.getState().stats.nodes.lb.perTarget
+    expect(t.s1).toBeUndefined()
+    expect(t.s2).toBeGreaterThanOrEqual(25)
   })
 
-  it('equals round robin when all servers are idle and equal', () => {
-    const { order } = routeN(3, { algorithm: 'leastConnections', processingMs: 10 })
-    // ties resolve to first server with the fewest active connections
-    expect(order[0]).toBe('s1')
+  it('without health check, a down server causes timeouts and retries', () => {
+    const p = wlsProject(2, {
+      lb: { healthCheck: false, timeoutMs: 500, retries: 1, algorithm: 'roundRobin' },
+      world: { rps: 2, timeoutMs: 10_000 },
+      edge: { latencyMs: 50, lossPct: 0 },
+    })
+    ;(p.nodes.find((n) => n.id === 's1')!.config as ConfigByType['server']).down = true
+    const e = boot(p)
+    run(e, 6000)
+    const lb = e.getState().stats.nodes.lb
+    expect(lb.timeouts).toBeGreaterThan(0)
+    expect(lb.retries).toBeGreaterThan(0)
+    expect(e.getState().stats.global.ok).toBeGreaterThan(0) // retries landed on s2
+  })
+
+  it('exhausted retries return a timeout error to the World', () => {
+    const p = wlsProject(1, {
+      lb: { healthCheck: false, timeoutMs: 300, retries: 0 },
+      world: { rps: 2, timeoutMs: 10_000 },
+      edge: { latencyMs: 50, lossPct: 0 },
+    })
+    ;(p.nodes.find((n) => n.id === 's1')!.config as ConfigByType['server']).down = true
+    const e = boot(p)
+    run(e, 3000)
+    expect(e.getState().stats.global.timeout).toBeGreaterThan(0)
+  })
+
+  it('retries a server failure on another server', () => {
+    const p = wlsProject(2, { lb: { retries: 1 }, world: { rps: 5 }, server: { processingMs: 50 }, edge: { latencyMs: 50, lossPct: 0 } })
+    ;(p.nodes.find((n) => n.id === 's1')!.config as ConfigByType['server']).failureRate = 1
+    const e = boot(p)
+    run(e, 4000)
+    const s = e.getState().stats
+    expect(s.nodes.lb.retries).toBeGreaterThan(0)
+    expect(s.global.ok).toBeGreaterThan(0)
   })
 })

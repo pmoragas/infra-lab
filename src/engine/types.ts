@@ -1,24 +1,125 @@
 // Data model — see Infra Lab plan (D — Data model)
 
-export type NodeType = 'world' | 'lb' | 'server'
+export type NodeType =
+  | 'world'
+  | 'lb'
+  | 'server'
+  | 'cache'
+  | 'cdn'
+  | 'rateLimiter'
+  | 'apiGateway'
+  | 'database'
+  | 'queue'
+  | 'consumer'
+  | 'dns'
+  | 'circuitBreaker'
+  | 'thirdParty'
 
-export type Intensity = 'slow' | 'normal' | 'fast' | 'burst'
-export type Algorithm = 'roundRobin' | 'random' | 'leastConnections'
+export type Algorithm = 'roundRobin' | 'random' | 'leastConnections' | 'weightedRoundRobin' | 'ipHash'
+export type RateAlgorithm = 'tokenBucket' | 'fixedWindow' | 'slidingWindow'
+export type TrafficPattern = 'steady' | 'burst'
 
 export interface WorldConfig {
-  intensity: Intensity
+  name: string
+  rps: number
+  pattern: TrafficPattern
+  burstEvery: number // ms, burst pattern only
+  burstSize: number // packets per burst
+  clients: number // distinct client ids (for ipHash, rate limits, dns)
+  keyspace: number // distinct request keys (for caches)
+  timeoutMs: number // give up waiting for a response
 }
 
 export interface LbConfig {
   algorithm: Algorithm
+  weights: Record<string, number> // server id → weight (weightedRoundRobin)
+  timeoutMs: number
+  retries: number
+  healthCheck: boolean // skip servers marked down
 }
 
 export interface ServerConfig {
   capacity: number
   processingMs: number
+  queueSize: number
+  failureRate: number // 0..1
+  jitterMs: number
+  warmupMs: number // processing doubled during warm-up after (re)start
+  down: boolean
 }
 
-export type NodeConfig = WorldConfig | LbConfig | ServerConfig
+export interface CacheConfig {
+  maxEntries: number
+  ttlMs: number
+  latencyMs: number
+}
+
+export interface RateLimiterConfig {
+  algorithm: RateAlgorithm
+  ratePerSec: number
+  burst: number // bucket size / window allowance
+  perClient: boolean
+}
+
+export interface ApiGatewayConfig {
+  latencyMs: number
+  authFailRate: number // 0..1
+}
+
+export interface DatabaseConfig {
+  capacity: number // concurrent queries on the primary
+  latencyMs: number
+  replicas: number // read replicas, each adds `capacity` for reads
+  readRatio: number // 0..1 share of requests that are reads
+  down: boolean
+}
+
+export interface QueueConfig {
+  maxSize: number
+}
+
+export interface ConsumerConfig {
+  capacity: number
+  processingMs: number
+  failureRate: number
+  maxRetries: number
+}
+
+export interface DnsConfig {
+  latencyMs: number
+  ttlMs: number
+}
+
+export interface CircuitBreakerConfig {
+  failureThreshold: number // failures within windowMs to open
+  windowMs: number
+  openMs: number // stay open this long, then half-open
+}
+
+export interface ThirdPartyConfig {
+  latencyMs: number
+  jitterMs: number
+  failureRate: number
+  down: boolean
+}
+
+export interface ConfigByType {
+  world: WorldConfig
+  lb: LbConfig
+  server: ServerConfig
+  cache: CacheConfig
+  cdn: CacheConfig
+  rateLimiter: RateLimiterConfig
+  apiGateway: ApiGatewayConfig
+  database: DatabaseConfig
+  queue: QueueConfig
+  consumer: ConsumerConfig
+  dns: DnsConfig
+  circuitBreaker: CircuitBreakerConfig
+  thirdParty: ThirdPartyConfig
+}
+
+export type NodeConfig = ConfigByType[NodeType]
 
 export interface LabNode {
   id: string
@@ -27,10 +128,21 @@ export interface LabNode {
   config: NodeConfig
 }
 
+export interface EdgeConfig {
+  latencyMs: number // time for a packet to cross this link
+  lossPct: number // 0..100
+}
+
 export interface LabEdge {
   id: string
   source: string
   target: string
+  config?: EdgeConfig
+}
+
+export interface ProjectSettings {
+  seed: number
+  speed: number // sim-time multiplier: 0.25 … 4
 }
 
 export interface Project {
@@ -38,42 +150,61 @@ export interface Project {
   name: string
   nodes: LabNode[]
   edges: LabEdge[]
-  settings: { seed: number }
+  settings: ProjectSettings
 }
 
 // Runtime only
 
 export type SimStatus = 'idle' | 'running' | 'paused'
-
 export type Phase = 'request' | 'response'
+export type PacketStatus = 'ok' | 'error'
 
 export interface Packet {
   id: string
+  clientId: string
+  key: number
   edgeId: string
-  from: string // node id the packet is travelling from
-  to: string // node id the packet is travelling to
+  from: string
+  to: string
   progress: number // 0..1 along from → to
   phase: Phase
+  status: PacketStatus
+  error?: string // reason when status = 'error'
   createdAt: number
   /** Nodes visited on the request leg; the response walks it backwards. */
   path: string[]
 }
 
-export interface ServerStats {
+/** Generic per-node counters. Handlers fill in what applies to them. */
+export interface NodeStats {
+  in: number
+  out: number
   active: number
+  queued: number
   processed: number
   dropped: number
+  failed: number
+  rejected: number
+  hits: number
+  misses: number
+  retries: number
+  timeouts: number
   loadPct: number
+  perTarget: Record<string, number>
+  state?: string // e.g. circuit breaker: closed / open / half-open
 }
 
-export interface LbStats {
-  routed: number
-  perServer: Record<string, number>
+export interface GlobalStats {
+  sent: number
+  ok: number
+  error: number
+  timeout: number
+  errors: Record<string, number> // reason → count
 }
 
 export interface Stats {
-  servers: Record<string, ServerStats>
-  lbs: Record<string, LbStats>
+  nodes: Record<string, NodeStats>
+  global: GlobalStats
 }
 
 export interface SimState {
@@ -89,14 +220,24 @@ export interface SimState {
 export interface NodeContext {
   now: number
   random(): number
-  /** Send a packet from this node to a directly connected node. Dropped if no edge. */
+  nextId(): string
+  /** Send a packet along the edge between two directly connected nodes. Lost if no edge or link loss. */
   send(from: string, to: string, packet: Packet): void
-  /** Ids of nodes reachable by an outgoing edge from `nodeId`. */
+  /** Turn a request into a response (or pass a response on) and send it one hop back along its path. */
+  respond(nodeId: string, packet: Packet, status?: PacketStatus, error?: string): void
   targets(nodeId: string): string[]
+  sources(nodeId: string): string[]
+  nodeType(nodeId: string): NodeType | undefined
+  nodeConfig(nodeId: string): NodeConfig | undefined
+  isDown(nodeId: string): boolean
   /** Per-node mutable runtime state (created lazily). */
   state<T>(nodeId: string, init: () => T): T
-  stats: Stats
-  nextId(): string
+  stats(nodeId: string): NodeStats
+  global: GlobalStats
+  /** Record the final outcome of a packet (called by its origin): 'ok', 'timeout' or an error reason. */
+  complete(packet: Packet, outcome: string): void
+  /** Sim time when the run started or this node was (re)added. */
+  startedAt(nodeId: string): number
 }
 
 export interface NodeHandler {

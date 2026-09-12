@@ -28,7 +28,7 @@ test.describe('M4: simulation on canvas', () => {
     await expect(page.getByTestId('packet').and(page.locator('[data-phase="response"]'))).not.toHaveCount(0, {
       timeout: 8000,
     })
-    const loads = page.getByTestId('server-load')
+    const loads = page.locator('[data-testid="node-server"] [data-testid="node-stat"]')
     await expect(loads).toHaveCount(2)
   })
 })

@@ -4,8 +4,9 @@ import { useLabStore } from '../store/useLabStore'
 import { LabNode } from './nodes/LabNode'
 import { PacketLayer } from './PacketLayer'
 import type { NodeType } from '../engine/types'
+import { LABEL } from '../engine/defaults'
 
-const nodeTypes = { world: LabNode, lb: LabNode, server: LabNode }
+const nodeTypes = Object.fromEntries(Object.keys(LABEL).map((t) => [t, LabNode])) as Record<NodeType, typeof LabNode>
 
 export const DRAG_MIME = 'application/x-infra-lab-node'
 
@@ -17,6 +18,7 @@ export function Canvas() {
   const onConnect = useLabStore((s) => s.onConnect)
   const addNode = useLabStore((s) => s.addNode)
   const select = useLabStore((s) => s.select)
+  const selectEdge = useLabStore((s) => s.selectEdge)
   const { screenToFlowPosition } = useReactFlow()
 
   const onDragOver = useCallback((e: DragEvent) => {
@@ -44,7 +46,12 @@ export function Canvas() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={(_, n) => select(n.id)}
-        onPaneClick={() => select(null)}
+        onEdgeClick={(_, e) => selectEdge(e.id)}
+        onPaneClick={() => {
+          select(null)
+          selectEdge(null)
+        }}
+        defaultEdgeOptions={{ interactionWidth: 24 }}
         fitView={false}
         deleteKeyCode={['Backspace', 'Delete']}
       >

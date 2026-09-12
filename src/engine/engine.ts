@@ -1,11 +1,15 @@
 import { createRng } from './rng'
 import { handlers } from './nodes'
+import { DEFAULT_EDGE, DEFAULT_SETTINGS, withDefaults } from './defaults'
 import type {
   LabEdge,
   LabNode,
   NodeConfig,
   NodeContext,
+  NodeStats,
+  NodeType,
   Packet,
+  PacketStatus,
   Project,
   SimState,
   Stats,
@@ -14,8 +18,6 @@ import type {
 export interface EngineOptions {
   /** Sim time advanced per tick, ms. */
   tickMs?: number
-  /** Time for a packet to cross one edge, ms. */
-  travelMs?: number
   /** Timer used by start(); defaults to setInterval. Tests can omit start() and call step(). */
   setInterval?: typeof globalThis.setInterval
   clearInterval?: typeof globalThis.clearInterval
@@ -35,24 +37,52 @@ export interface Engine {
   addEdge(edge: LabEdge): void
   removeEdge(id: string): void
   updateNodeConfig(id: string, patch: Partial<NodeConfig>): void
+  updateEdgeConfig(id: string, patch: Partial<LabEdge['config']>): void
+  setSpeed(speed: number): void
+}
+
+export function emptyNodeStats(): NodeStats {
+  return {
+    in: 0,
+    out: 0,
+    active: 0,
+    queued: 0,
+    processed: 0,
+    dropped: 0,
+    failed: 0,
+    rejected: 0,
+    hits: 0,
+    misses: 0,
+    retries: 0,
+    timeouts: 0,
+    loadPct: 0,
+    perTarget: {},
+  }
+}
+
+function emptyStats(): Stats {
+  return { nodes: {}, global: { sent: 0, ok: 0, error: 0, timeout: 0, errors: {} } }
 }
 
 export function createEngine(project: Project, opts: EngineOptions = {}): Engine {
   const tickMs = opts.tickMs ?? 50
-  const travelMs = opts.travelMs ?? 600
   const setI = opts.setInterval ?? globalThis.setInterval
   const clearI = opts.clearInterval ?? globalThis.clearInterval
+  const settings = { ...DEFAULT_SETTINGS, ...project.settings }
 
-  const nodes = new Map<string, LabNode>(project.nodes.map((n) => [n.id, structuredClone(n)]))
-  const edges = new Map<string, LabEdge>(project.edges.map((e) => [e.id, { ...e }]))
+  const nodes = new Map<string, LabNode>()
+  const edges = new Map<string, LabEdge>()
+  for (const n of project.nodes) nodes.set(n.id, { ...n, config: withDefaults(n.type, n.config as never) })
+  for (const e of project.edges) edges.set(e.id, { ...e, config: { ...DEFAULT_EDGE, ...e.config } })
 
   let status: SimState['status'] = 'idle'
   let tick = 0
   let now = 0
   let packets: Packet[] = []
-  let stats: Stats = { servers: {}, lbs: {} }
+  let stats: Stats = emptyStats()
   let nodeState = new Map<string, unknown>()
-  let rng = createRng(project.settings.seed)
+  let startedAt = new Map<string, number>()
+  let rng = createRng(settings.seed)
   let idCounter = 0
   let timer: ReturnType<typeof setInterval> | undefined
   const listeners = new Set<Listener>()
@@ -69,28 +99,68 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
       return now
     },
     random: () => rng(),
+    nextId: () => `p${++idCounter}`,
     send(from, to, packet) {
       const edge = findEdge(from, to)
       if (!edge) return
+      const loss = edge.config?.lossPct ?? 0
+      if (loss > 0 && rng() * 100 < loss) return // lost on the wire
+      // A request re-sent from a node it already visited (retry, cache miss → origin) restarts its path there,
+      // so the reply walks back through real edges only.
+      if (packet.phase === 'request') {
+        const i = packet.path.lastIndexOf(from)
+        if (i >= 0) packet.path.length = i + 1
+      }
       packet.edgeId = edge.id
       packet.from = from
       packet.to = to
       packet.progress = 0
       packets.push(packet)
     },
+    respond(nodeId, packet, statusIn, error) {
+      packet.phase = 'response'
+      if (statusIn) packet.status = statusIn
+      if (error) packet.error = error
+      const idx = packet.path.lastIndexOf(nodeId)
+      const back = packet.path[idx - 1]
+      if (back) ctx.send(nodeId, back, packet)
+    },
     targets(nodeId) {
       const out: string[] = []
       for (const e of edges.values()) if (e.source === nodeId) out.push(e.target)
       return out
     },
+    sources(nodeId) {
+      const out: string[] = []
+      for (const e of edges.values()) if (e.target === nodeId) out.push(e.source)
+      return out
+    },
+    nodeType: (id) => nodes.get(id)?.type,
+    nodeConfig: (id) => nodes.get(id)?.config,
+    isDown(id) {
+      const c = nodes.get(id)?.config as { down?: boolean } | undefined
+      return c?.down === true
+    },
     state<T>(nodeId: string, init: () => T): T {
       if (!nodeState.has(nodeId)) nodeState.set(nodeId, init())
       return nodeState.get(nodeId) as T
     },
-    get stats() {
-      return stats
+    stats(nodeId) {
+      return (stats.nodes[nodeId] ??= emptyNodeStats())
     },
-    nextId: () => `p${++idCounter}`,
+    get global() {
+      return stats.global
+    },
+    complete(_packet, outcome) {
+      const g = stats.global
+      if (outcome === 'ok') g.ok += 1
+      else if (outcome === 'timeout') g.timeout += 1
+      else {
+        g.error += 1
+        g.errors[outcome] = (g.errors[outcome] ?? 0) + 1
+      }
+    },
+    startedAt: (id) => startedAt.get(id) ?? 0,
   }
 
   function snapshot(): SimState {
@@ -108,7 +178,7 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
     for (const l of listeners) l(s)
   }
 
-  function step(dt = tickMs) {
+  function step(dt = tickMs * settings.speed) {
     tick += 1
     now += dt
 
@@ -116,14 +186,17 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
     const arrived: Packet[] = []
     const inFlight: Packet[] = []
     for (const p of packets) {
-      p.progress = Math.min(1, p.progress + dt / travelMs)
+      const travel = edges.get(p.edgeId)?.config?.latencyMs ?? DEFAULT_EDGE.latencyMs
+      p.progress = Math.min(1, p.progress + dt / Math.max(1, travel))
       if (p.progress >= 1) arrived.push(p)
       else inFlight.push(p)
     }
     packets = inFlight
     for (const p of arrived) {
       const node = nodes.get(p.to)
-      if (node) handlers[node.type].onPacket(node, p, ctx)
+      if (!node) continue
+      ctx.stats(node.id).in += 1
+      handlers[node.type].onPacket(node, p, ctx)
     }
 
     // 2. Tick every node.
@@ -135,7 +208,8 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
   function start() {
     if (status === 'running') return
     status = 'running'
-    timer = setI(() => step(tickMs), tickMs)
+    for (const id of nodes.keys()) if (!startedAt.has(id)) startedAt.set(id, now)
+    timer = setI(() => step(), tickMs)
     emit()
   }
 
@@ -154,9 +228,10 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
     tick = 0
     now = 0
     packets = []
-    stats = { servers: {}, lbs: {} }
+    stats = emptyStats()
     nodeState = new Map()
-    rng = createRng(project.settings.seed)
+    startedAt = new Map()
+    rng = createRng(settings.seed)
     idCounter = 0
     emit()
   }
@@ -172,18 +247,19 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
     },
     getState: snapshot,
     addNode(node) {
-      nodes.set(node.id, structuredClone(node))
+      nodes.set(node.id, { ...node, config: withDefaults(node.type, node.config as never) })
+      startedAt.set(node.id, now)
     },
     removeNode(id) {
       nodes.delete(id)
       nodeState.delete(id)
+      startedAt.delete(id)
       for (const [eid, e] of edges) if (e.source === id || e.target === id) edges.delete(eid)
       packets = packets.filter((p) => p.from !== id && p.to !== id)
-      delete stats.servers[id]
-      delete stats.lbs[id]
+      delete stats.nodes[id]
     },
     addEdge(edge) {
-      edges.set(edge.id, { ...edge })
+      edges.set(edge.id, { ...edge, config: { ...DEFAULT_EDGE, ...edge.config } })
     },
     removeEdge(id) {
       edges.delete(id)
@@ -193,5 +269,14 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
       const n = nodes.get(id)
       if (n) n.config = { ...n.config, ...patch } as NodeConfig
     },
+    updateEdgeConfig(id, patch) {
+      const e = edges.get(id)
+      if (e) e.config = { ...DEFAULT_EDGE, ...e.config, ...patch }
+    },
+    setSpeed(speed) {
+      settings.speed = speed
+    },
   }
 }
+
+export type { NodeType, PacketStatus }

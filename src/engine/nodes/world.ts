@@ -1,40 +1,78 @@
-import type { Intensity, NodeHandler, Packet, WorldConfig } from '../types'
-
-export const EMIT_INTERVAL_MS: Record<Intensity, number> = {
-  slow: 1000,
-  normal: 500,
-  fast: 200,
-  burst: 50,
-}
+import type { NodeHandler, Packet, WorldConfig } from '../types'
+import { forward } from './util'
 
 interface WorldState {
-  sinceLastEmit: number
+  acc: number
+  sinceBurst: number
+  pending: Map<string, number> // packet id → sent at
 }
 
 export const worldHandler: NodeHandler = {
-  onPacket() {
-    // Responses arriving back at the World are simply absorbed.
+  onPacket(node, packet, ctx) {
+    const st = ctx.state<WorldState>(node.id, () => ({ acc: 0, sinceBurst: 0, pending: new Map() }))
+    if (!st.pending.has(packet.id)) return // late reply after timeout
+    st.pending.delete(packet.id)
+    const s = ctx.stats(node.id)
+    if (packet.status === 'ok') {
+      s.processed += 1
+      ctx.complete(packet, 'ok')
+    } else {
+      s.failed += 1
+      ctx.complete(packet, packet.error ?? 'error')
+    }
   },
   tick(node, dt, ctx) {
     const cfg = node.config as WorldConfig
-    const st = ctx.state<WorldState>(node.id, () => ({ sinceLastEmit: 0 }))
-    const interval = EMIT_INTERVAL_MS[cfg.intensity]
-    st.sinceLastEmit += dt
-    while (st.sinceLastEmit >= interval) {
-      st.sinceLastEmit -= interval
-      for (const target of ctx.targets(node.id)) {
-        const packet: Packet = {
-          id: ctx.nextId(),
-          edgeId: '',
-          from: node.id,
-          to: target,
-          progress: 0,
-          phase: 'request',
-          createdAt: ctx.now,
-          path: [node.id],
-        }
-        ctx.send(node.id, target, packet)
+    const st = ctx.state<WorldState>(node.id, () => ({ acc: 0, sinceBurst: 0, pending: new Map() }))
+
+    const emit = () => {
+      const packet: Packet = {
+        id: ctx.nextId(),
+        clientId: `c${1 + Math.floor(ctx.random() * Math.max(1, cfg.clients))}`,
+        key: Math.floor(ctx.random() * Math.max(1, cfg.keyspace)),
+        edgeId: '',
+        from: node.id,
+        to: '',
+        progress: 0,
+        phase: 'request',
+        status: 'ok',
+        createdAt: ctx.now,
+        path: [node.id],
+      }
+      ctx.global.sent += 1
+      if (ctx.targets(node.id).length === 0) {
+        ctx.stats(node.id).failed += 1
+        ctx.complete(packet, 'no-route')
+        return
+      }
+      st.pending.set(packet.id, ctx.now)
+      ctx.stats(node.id).active = st.pending.size
+      forward(node, packet, ctx)
+    }
+
+    if (cfg.pattern === 'burst') {
+      st.sinceBurst += dt
+      if (st.sinceBurst >= cfg.burstEvery) {
+        st.sinceBurst -= cfg.burstEvery
+        for (let i = 0; i < cfg.burstSize; i++) emit()
+      }
+    } else {
+      // acc counts packet·ms so 50ms ticks at integer rps stay exact.
+      st.acc += dt * cfg.rps
+      while (st.acc >= 1000) {
+        st.acc -= 1000
+        emit()
       }
     }
+
+    // Give up on replies that never came.
+    for (const [id, sentAt] of st.pending) {
+      if (ctx.now - sentAt > cfg.timeoutMs) {
+        st.pending.delete(id)
+        ctx.stats(node.id).timeouts += 1
+        ctx.complete({ id } as Packet, 'timeout')
+      }
+    }
+    ctx.stats(node.id).active = st.pending.size
   },
 }

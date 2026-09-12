@@ -11,14 +11,13 @@ test.describe('M6: persistence', () => {
     await page.reload()
     await expect(page.getByTestId('node-server')).toHaveCount(2)
     await expect(page.locator('.react-flow__edge')).toHaveCount(3)
-    await expect(page.locator('[data-node-id="lb-1"] .lab-node__sub')).toHaveText('random')
+    await expect(page.locator('[data-node-id="lb-1"] .lab-node__sub')).toContainText('random')
 
-    // New nodes keep unique ids after reload.
     await page.getByTestId('palette-server').click()
     await expect(page.locator('[data-node-id="server-3"]')).toHaveCount(1)
   })
 
-  test('import replaces the project', async ({ page }) => {
+  test('import replaces the project, including an old v1 file with missing fields', async ({ page }) => {
     await buildWls(page, 1)
     const project = {
       id: 'imported',
@@ -44,6 +43,8 @@ test.describe('M6: persistence', () => {
       buffer: Buffer.from(JSON.stringify(project)),
     })
     await expect(page.getByTestId('node-server')).toHaveCount(3)
-    await expect(page.locator('[data-node-id="lb-1"] .lab-node__sub')).toHaveText('leastConnections')
+    await expect(page.locator('[data-node-id="lb-1"] .lab-node__sub')).toContainText('leastConnections')
+    await page.getByTestId('btn-start').click()
+    await expect(page.getByTestId('packet')).not.toHaveCount(0, { timeout: 5000 })
   })
 })
