@@ -22,6 +22,10 @@ Vite + React + TypeScript · React Flow (`@xyflow/react`) · Zustand · Vitest �
 - `src/persistence/` — localStorage autosave, JSON export/import.
 - `e2e/` — Playwright specs, one per milestone.
 
+## Examples
+
+`examples/ecommerce.json` — storefront with DNS, CDN, gateway, rate limiter, LB, cache-aside servers with a replicated DB, a checkout path through a circuit breaker to a payment API, and an order queue with a DLQ. Toolbar → Import.
+
 ## Run
 
 ```

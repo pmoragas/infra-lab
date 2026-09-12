@@ -1,0 +1,75 @@
+{
+  "id": "ecommerce",
+  "name": "E-commerce storefront",
+  "settings": { "seed": 7, "speed": 1 },
+  "nodes": [
+    { "id": "world-1", "type": "world", "position": { "x": 40, "y": 60 },
+      "config": { "name": "Web users", "rps": 6, "pattern": "steady", "burstEvery": 2000, "burstSize": 10, "clients": 40, "keyspace": 60, "timeoutMs": 15000 } },
+    { "id": "world-2", "type": "world", "position": { "x": 40, "y": 420 },
+      "config": { "name": "Checkout", "rps": 1, "pattern": "steady", "burstEvery": 2000, "burstSize": 10, "clients": 10, "keyspace": 100, "timeoutMs": 15000 } },
+    { "id": "world-3", "type": "world", "position": { "x": 40, "y": 640 },
+      "config": { "name": "Order events", "rps": 2, "pattern": "burst", "burstEvery": 3000, "burstSize": 8, "clients": 5, "keyspace": 50, "timeoutMs": 15000 } },
+
+    { "id": "dns-1", "type": "dns", "position": { "x": 260, "y": 60 }, "config": { "latencyMs": 40, "ttlMs": 30000 } },
+    { "id": "cdn-1", "type": "cdn", "position": { "x": 480, "y": 60 }, "config": { "maxEntries": 20, "ttlMs": 20000, "latencyMs": 10 } },
+    { "id": "apiGateway-1", "type": "apiGateway", "position": { "x": 700, "y": 60 }, "config": { "latencyMs": 15, "authFailRate": 0.02 } },
+    { "id": "rateLimiter-1", "type": "rateLimiter", "position": { "x": 920, "y": 60 },
+      "config": { "algorithm": "tokenBucket", "ratePerSec": 5, "burst": 10, "perClient": false } },
+    { "id": "lb-1", "type": "lb", "position": { "x": 1140, "y": 60 },
+      "config": { "algorithm": "leastConnections", "weights": {}, "timeoutMs": 4000, "retries": 1, "healthCheck": true } },
+
+    { "id": "server-1", "type": "server", "position": { "x": 1380, "y": -60 },
+      "config": { "capacity": 8, "processingMs": 60, "queueSize": 20, "failureRate": 0.01, "jitterMs": 30, "warmupMs": 0, "down": false } },
+    { "id": "server-2", "type": "server", "position": { "x": 1380, "y": 60 },
+      "config": { "capacity": 8, "processingMs": 60, "queueSize": 20, "failureRate": 0.01, "jitterMs": 30, "warmupMs": 0, "down": false } },
+    { "id": "server-3", "type": "server", "position": { "x": 1380, "y": 180 },
+      "config": { "capacity": 8, "processingMs": 60, "queueSize": 20, "failureRate": 0.01, "jitterMs": 30, "warmupMs": 3000, "down": false } },
+
+    { "id": "cache-1", "type": "cache", "position": { "x": 1640, "y": 0 }, "config": { "maxEntries": 200, "ttlMs": 10000, "latencyMs": 3 } },
+    { "id": "database-1", "type": "database", "position": { "x": 1640, "y": 150 },
+      "config": { "capacity": 4, "latencyMs": 40, "replicas": 2, "readRatio": 0.9, "down": false } },
+
+    { "id": "lb-2", "type": "lb", "position": { "x": 480, "y": 420 },
+      "config": { "algorithm": "roundRobin", "weights": {}, "timeoutMs": 6000, "retries": 1, "healthCheck": true } },
+    { "id": "server-4", "type": "server", "position": { "x": 720, "y": 360 },
+      "config": { "capacity": 4, "processingMs": 120, "queueSize": 10, "failureRate": 0, "jitterMs": 40, "warmupMs": 0, "down": false } },
+    { "id": "server-5", "type": "server", "position": { "x": 720, "y": 480 },
+      "config": { "capacity": 4, "processingMs": 120, "queueSize": 10, "failureRate": 0, "jitterMs": 40, "warmupMs": 0, "down": false } },
+    { "id": "circuitBreaker-1", "type": "circuitBreaker", "position": { "x": 980, "y": 420 },
+      "config": { "failureThreshold": 5, "windowMs": 10000, "openMs": 5000 } },
+    { "id": "thirdParty-1", "type": "thirdParty", "position": { "x": 1240, "y": 420 },
+      "config": { "latencyMs": 350, "jitterMs": 250, "failureRate": 0.05, "down": false } },
+
+    { "id": "queue-1", "type": "queue", "position": { "x": 480, "y": 640 }, "config": { "maxSize": 50 } },
+    { "id": "consumer-1", "type": "consumer", "position": { "x": 720, "y": 640 },
+      "config": { "capacity": 2, "processingMs": 400, "failureRate": 0.3, "maxRetries": 2 } },
+    { "id": "queue-2", "type": "queue", "position": { "x": 980, "y": 640 }, "config": { "maxSize": 100 } }
+  ],
+  "edges": [
+    { "id": "e-world-1-dns-1", "source": "world-1", "target": "dns-1", "config": { "latencyMs": 30, "lossPct": 0 } },
+    { "id": "e-dns-1-cdn-1", "source": "dns-1", "target": "cdn-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-cdn-1-apiGateway-1", "source": "cdn-1", "target": "apiGateway-1", "config": { "latencyMs": 40, "lossPct": 0.5 } },
+    { "id": "e-apiGateway-1-rateLimiter-1", "source": "apiGateway-1", "target": "rateLimiter-1", "config": { "latencyMs": 5, "lossPct": 0 } },
+    { "id": "e-rateLimiter-1-lb-1", "source": "rateLimiter-1", "target": "lb-1", "config": { "latencyMs": 5, "lossPct": 0 } },
+    { "id": "e-lb-1-server-1", "source": "lb-1", "target": "server-1", "config": { "latencyMs": 5, "lossPct": 0 } },
+    { "id": "e-lb-1-server-2", "source": "lb-1", "target": "server-2", "config": { "latencyMs": 5, "lossPct": 0 } },
+    { "id": "e-lb-1-server-3", "source": "lb-1", "target": "server-3", "config": { "latencyMs": 5, "lossPct": 0 } },
+    { "id": "e-server-1-cache-1", "source": "server-1", "target": "cache-1", "config": { "latencyMs": 2, "lossPct": 0 } },
+    { "id": "e-server-2-cache-1", "source": "server-2", "target": "cache-1", "config": { "latencyMs": 2, "lossPct": 0 } },
+    { "id": "e-server-3-cache-1", "source": "server-3", "target": "cache-1", "config": { "latencyMs": 2, "lossPct": 0 } },
+    { "id": "e-server-1-database-1", "source": "server-1", "target": "database-1", "config": { "latencyMs": 5, "lossPct": 0 } },
+    { "id": "e-server-2-database-1", "source": "server-2", "target": "database-1", "config": { "latencyMs": 5, "lossPct": 0 } },
+    { "id": "e-server-3-database-1", "source": "server-3", "target": "database-1", "config": { "latencyMs": 5, "lossPct": 0 } },
+
+    { "id": "e-world-2-lb-2", "source": "world-2", "target": "lb-2", "config": { "latencyMs": 40, "lossPct": 0 } },
+    { "id": "e-lb-2-server-4", "source": "lb-2", "target": "server-4", "config": { "latencyMs": 5, "lossPct": 0 } },
+    { "id": "e-lb-2-server-5", "source": "lb-2", "target": "server-5", "config": { "latencyMs": 5, "lossPct": 0 } },
+    { "id": "e-server-4-circuitBreaker-1", "source": "server-4", "target": "circuitBreaker-1", "config": { "latencyMs": 5, "lossPct": 0 } },
+    { "id": "e-server-5-circuitBreaker-1", "source": "server-5", "target": "circuitBreaker-1", "config": { "latencyMs": 5, "lossPct": 0 } },
+    { "id": "e-circuitBreaker-1-thirdParty-1", "source": "circuitBreaker-1", "target": "thirdParty-1", "config": { "latencyMs": 120, "lossPct": 1 } },
+
+    { "id": "e-world-3-queue-1", "source": "world-3", "target": "queue-1", "config": { "latencyMs": 30, "lossPct": 0 } },
+    { "id": "e-queue-1-consumer-1", "source": "queue-1", "target": "consumer-1", "config": { "latencyMs": 5, "lossPct": 0 } },
+    { "id": "e-consumer-1-queue-2", "source": "consumer-1", "target": "queue-2", "config": { "latencyMs": 5, "lossPct": 0 } }
+  ]
+}
