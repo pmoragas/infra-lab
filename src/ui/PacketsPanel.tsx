@@ -1,12 +1,7 @@
 import { useLabStore, type LabFlowNode } from '../store/useLabStore'
 import { sim } from '../sim/controller'
 import { LABEL } from '../engine/defaults'
-import type { Journey } from '../engine/types'
-
-function percentile(sorted: number[], p: number): number | undefined {
-  if (sorted.length === 0) return undefined
-  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1))]
-}
+import type { Journey, ResultSnapshot } from '../engine/types'
 
 const ms = (v: number | undefined) => (v === undefined ? '–' : `${Math.round(v)} ms`)
 const latency = (j: Journey) => (j.endedAt ?? j.startedAt) - j.startedAt
@@ -22,25 +17,106 @@ function Tile({ label, value, testId }: { label: string; value: string; testId: 
   )
 }
 
+type Row = Omit<ResultSnapshot, 'id' | 'label'>
+
+const COMPARE_ROWS: [string, (r: Row) => string][] = [
+  ['sim time', (r) => `${Math.round(r.simMs / 1000)} s`],
+  ['completed', (r) => String(r.completed)],
+  ['success', (r) => `${r.successPct}%`],
+  ['failed', (r) => String(r.failed)],
+  ['p50', (r) => (r.p50 ? ms(r.p50) : '–')],
+  ['p95', (r) => (r.p95 ? ms(r.p95) : '–')],
+  ['p99', (r) => (r.p99 ? ms(r.p99) : '–')],
+]
+
+/** Pin a run's results, change one thing, run again, and read the columns side by side. */
+function Compare() {
+  const snapshots = useLabStore((s) => s.snapshots)
+  const global = useLabStore((s) => s.sim?.stats.global)
+  const simMs = useLabStore((s) => s.sim?.now ?? 0)
+  const { addSnapshot, renameSnapshot, removeSnapshot } = useLabStore.getState()
+  const completed = global ? global.ok + global.error + global.timeout : 0
+  const current: Row | undefined =
+    global && completed
+      ? {
+          simMs,
+          completed,
+          successPct: Math.round((global.ok / completed) * 100),
+          failed: global.error + global.timeout,
+          p50: global.latency.p50,
+          p95: global.latency.p95,
+          p99: global.latency.p99,
+        }
+      : undefined
+
+  return (
+    <div className="compare" data-testid="compare">
+      <div className="compare__head">
+        <div className="eyebrow">Compare runs</div>
+        <button className="btn" data-testid="btn-snapshot" disabled={!current} onClick={() => addSnapshot()}>
+          Save results
+        </button>
+      </div>
+      {snapshots.length === 0 ? (
+        <p className="drawer__empty">Save results, change one thing, Reset and run again: saved runs show up here next to the current one.</p>
+      ) : (
+        <div className="compare__scroll">
+          <table className="compare__table">
+            <thead>
+              <tr>
+                <th />
+                {snapshots.map((sn) => (
+                  <th key={sn.id} data-testid="snapshot-col">
+                    <input
+                      className="compare__label"
+                      data-testid="snapshot-label"
+                      aria-label="Run label"
+                      value={sn.label}
+                      onChange={(e) => renameSnapshot(sn.id, e.target.value)}
+                    />
+                    <button className="compare__remove" data-testid="snapshot-remove" aria-label={`Remove ${sn.label}`} onClick={() => removeSnapshot(sn.id)}>
+                      ×
+                    </button>
+                  </th>
+                ))}
+                <th>Now</th>
+              </tr>
+            </thead>
+            <tbody>
+              {COMPARE_ROWS.map(([label, fmt]) => (
+                <tr key={label}>
+                  <td>{label}</td>
+                  {snapshots.map((sn) => (
+                    <td key={sn.id}>{fmt(sn)}</td>
+                  ))}
+                  <td>{current ? fmt(current) : '–'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Overview({ journeys, onOpen }: { journeys: Journey[]; onOpen: (id: string) => void }) {
   const global = useLabStore((s) => s.sim?.stats.global)
-  const okLatencies = journeys
-    .filter((j) => j.outcome === 'ok')
-    .map(latency)
-    .sort((a, b) => a - b)
+  const lat = global?.latency.count ? global.latency : undefined
   const total = global ? global.ok + global.error + global.timeout : 0
   const failed = global ? global.error + global.timeout : 0
 
   return (
     <>
       <div className="tiles">
-        <Tile label="p50 latency" value={ms(percentile(okLatencies, 50))} testId="stat-p50" />
-        <Tile label="p95 latency" value={ms(percentile(okLatencies, 95))} testId="stat-p95" />
-        <Tile label="p99 latency" value={ms(percentile(okLatencies, 99))} testId="stat-p99" />
+        <Tile label="p50 latency" value={ms(lat?.p50)} testId="stat-p50" />
+        <Tile label="p95 latency" value={ms(lat?.p95)} testId="stat-p95" />
+        <Tile label="p99 latency" value={ms(lat?.p99)} testId="stat-p99" />
         <Tile label="success" value={total ? `${Math.round((global!.ok / total) * 100)}%` : '–'} testId="stat-success" />
         <Tile label="completed" value={String(total)} testId="stat-completed" />
         <Tile label="failed" value={String(failed)} testId="stat-failed" />
       </div>
+      <Compare />
       <div className="eyebrow">Recent</div>
       {journeys.length === 0 ? (
         <p className="drawer__empty">Run the simulation. Completed requests show up here; click one, or a moving packet, to follow it.</p>

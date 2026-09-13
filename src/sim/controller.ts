@@ -60,6 +60,10 @@ export const sim = {
     unsubscribe = null
     useLabStore.getState().setSim(null)
   },
+  /** Simulate `ms` of sim time instantly, then leave the sim paused on the results. */
+  fastForward(ms: number) {
+    ensureEngine().runFor(ms)
+  },
   journey(id: string) {
     return engine?.getJourney(id)
   },

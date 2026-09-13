@@ -1,0 +1,31 @@
+{
+  "id": "lesson-thundering-herd",
+  "name": "4. Cache flush",
+  "settings": { "seed": 4, "speed": 1 },
+  "guide": {
+    "question": "The cache is wiped at 20 s. What happens to the database?",
+    "steps": [
+      "Press Run (not ⏩), open Packets and select the Database. After the first seconds of warm-up, requests are quick and the database is quiet: the cache answers them.",
+      "At 20 s a scheduled cache flush (see Chaos) wipes the cache. Watch the Database queue jump and recent requests slow down while every key is fetched again at once.",
+      "It recovers within a few seconds as the cache refills. How would you soften it? Try more Database capacity, or open Chaos and move the flush."
+    ]
+  },
+  "nodes": [
+    { "id": "world-1", "type": "world", "position": { "x": 40, "y": 200 },
+      "config": { "name": "Readers", "rps": 60, "pattern": "steady", "clients": 50, "keyspace": 60, "timeoutMs": 10000 } },
+    { "id": "server-1", "type": "server", "position": { "x": 300, "y": 200 },
+      "config": { "capacity": 100, "processingMs": 10, "queueSize": 200, "failureRate": 0, "jitterMs": 0, "warmupMs": 0, "down": false } },
+    { "id": "cache-1", "type": "cache", "position": { "x": 560, "y": 110 },
+      "config": { "maxEntries": 200, "ttlMs": 300000, "latencyMs": 2 } },
+    { "id": "database-1", "type": "database", "position": { "x": 560, "y": 290 },
+      "config": { "capacity": 5, "latencyMs": 200, "replicas": 0, "readRatio": 1, "down": false } }
+  ],
+  "edges": [
+    { "id": "e-world-1-server-1", "source": "world-1", "target": "server-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-server-1-cache-1", "source": "server-1", "target": "cache-1", "config": { "latencyMs": 2, "lossPct": 0 } },
+    { "id": "e-server-1-database-1", "source": "server-1", "target": "database-1", "config": { "latencyMs": 5, "lossPct": 0 } }
+  ],
+  "failures": [
+    { "id": "f-flush", "kind": "flush", "target": "cache-1", "atMs": 20000, "durationMs": 0, "factor": 1 }
+  ]
+}

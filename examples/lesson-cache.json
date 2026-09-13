@@ -1,0 +1,30 @@
+{
+  "id": "lesson-cache",
+  "name": "3. Cache in front",
+  "settings": { "seed": 3, "speed": 1 },
+  "guide": {
+    "question": "The database can only answer about 13 queries a second. What does the cache change?",
+    "steps": [
+      "Press ⏩ 60 s and open Packets: p95 stays low, because after a few misses the cache answers almost every request.",
+      "Select the Database: it barely worked (Live → in).",
+      "Now remove the cache: click the Server → Cache link, press Remove link, then Reset and ⏩ 60 s.",
+      "Every request now hits the database: requests queue up, many are dropped, and p95 explodes. Press Ctrl+Z to bring the cache back."
+    ]
+  },
+  "nodes": [
+    { "id": "world-1", "type": "world", "position": { "x": 40, "y": 200 },
+      "config": { "name": "Readers", "rps": 20, "pattern": "steady", "clients": 50, "keyspace": 20, "timeoutMs": 10000 } },
+    { "id": "server-1", "type": "server", "position": { "x": 300, "y": 200 },
+      "config": { "capacity": 20, "processingMs": 20, "queueSize": 200, "failureRate": 0, "jitterMs": 0, "warmupMs": 0, "down": false } },
+    { "id": "cache-1", "type": "cache", "position": { "x": 560, "y": 110 },
+      "config": { "maxEntries": 50, "ttlMs": 60000, "latencyMs": 5 } },
+    { "id": "database-1", "type": "database", "position": { "x": 560, "y": 290 },
+      "config": { "capacity": 2, "latencyMs": 150, "replicas": 0, "readRatio": 1, "down": false } }
+  ],
+  "edges": [
+    { "id": "e-world-1-server-1", "source": "world-1", "target": "server-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-server-1-cache-1", "source": "server-1", "target": "cache-1", "config": { "latencyMs": 2, "lossPct": 0 } },
+    { "id": "e-server-1-database-1", "source": "server-1", "target": "database-1", "config": { "latencyMs": 5, "lossPct": 0 } }
+  ],
+  "failures": []
+}

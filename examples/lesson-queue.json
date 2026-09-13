@@ -1,0 +1,32 @@
+{
+  "id": "lesson-queue",
+  "name": "7. Queue vs direct call",
+  "settings": { "seed": 7, "speed": 1 },
+  "guide": {
+    "question": "A worker can finish 2 jobs a second, but 5 arrive. Call it directly, or queue the work?",
+    "steps": [
+      "Press ⏩ 60 s. Select Direct calls (the top World): most requests failed, because the server was full and dropped them (Live → failed).",
+      "Select Queued jobs (the bottom World): every request was accepted straight away.",
+      "Select the Message Queue: the work didn't disappear, it's waiting. About 3 jobs a second pile up: a queue swaps 'no' now for 'later'.",
+      "Add Consumers, each connected from the queue, until the backlog stops growing. How many do you need?"
+    ]
+  },
+  "nodes": [
+    { "id": "world-1", "type": "world", "position": { "x": 40, "y": 90 },
+      "config": { "name": "Direct calls", "rps": 5, "pattern": "steady", "clients": 50, "keyspace": 100, "timeoutMs": 5000 } },
+    { "id": "server-1", "type": "server", "position": { "x": 300, "y": 90 },
+      "config": { "capacity": 2, "processingMs": 1000, "queueSize": 0, "failureRate": 0, "jitterMs": 0, "warmupMs": 0, "down": false } },
+    { "id": "world-2", "type": "world", "position": { "x": 40, "y": 310 },
+      "config": { "name": "Queued jobs", "rps": 5, "pattern": "steady", "clients": 50, "keyspace": 100, "timeoutMs": 5000 } },
+    { "id": "queue-1", "type": "queue", "position": { "x": 300, "y": 310 },
+      "config": { "maxSize": 1000 } },
+    { "id": "consumer-1", "type": "consumer", "position": { "x": 560, "y": 310 },
+      "config": { "capacity": 2, "processingMs": 1000, "failureRate": 0, "maxRetries": 0 } }
+  ],
+  "edges": [
+    { "id": "e-world-1-server-1", "source": "world-1", "target": "server-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-world-2-queue-1", "source": "world-2", "target": "queue-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-queue-1-consumer-1", "source": "queue-1", "target": "consumer-1", "config": { "latencyMs": 20, "lossPct": 0 } }
+  ],
+  "failures": []
+}

@@ -158,6 +158,25 @@ export interface Failure {
   factor: number // 'spike' only: traffic multiplier
 }
 
+/** A lesson attached to a preset: the question to answer and what to do, in order. */
+export interface Guide {
+  question: string
+  steps: string[]
+}
+
+/** Results pinned from a run, to compare against the next one. */
+export interface ResultSnapshot {
+  id: string
+  label: string
+  simMs: number
+  completed: number
+  successPct: number
+  failed: number
+  p50: number
+  p95: number
+  p99: number
+}
+
 export interface Project {
   id: string
   name: string
@@ -165,6 +184,8 @@ export interface Project {
   edges: LabEdge[]
   settings: ProjectSettings
   failures?: Failure[]
+  guide?: Guide
+  snapshots?: ResultSnapshot[]
 }
 
 // Runtime only
@@ -208,12 +229,20 @@ export interface NodeStats {
   state?: string // e.g. circuit breaker: closed / open / half-open
 }
 
+export interface LatencySummary {
+  count: number // successful requests measured
+  p50: number
+  p95: number
+  p99: number
+}
+
 export interface GlobalStats {
   sent: number
   ok: number
   error: number
   timeout: number
   errors: Record<string, number> // reason → count
+  latency: LatencySummary // successful requests over the whole run
 }
 
 export interface Stats {

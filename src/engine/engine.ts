@@ -44,12 +44,15 @@ export interface Engine {
   updateEdgeConfig(id: string, patch: Partial<LabEdge['config']>): void
   setSpeed(speed: number): void
   setFailures(failures: Failure[]): void
+  /** Advance sim time by `ms` as fast as possible, then pause and publish a single snapshot. */
+  runFor(ms: number): void
   /** A packet's journey so far, whether still in flight or recently completed. */
   getJourney(id: string): Journey | undefined
 }
 
 const JOURNEY_LIMIT = 200
 const JOURNEY_STALE_MS = 60_000
+const LATENCY_LIMIT = 100_000
 
 export function emptyNodeStats(): NodeStats {
   return {
@@ -71,7 +74,7 @@ export function emptyNodeStats(): NodeStats {
 }
 
 function emptyStats(): Stats {
-  return { nodes: {}, global: { sent: 0, ok: 0, error: 0, timeout: 0, errors: {} } }
+  return { nodes: {}, global: { sent: 0, ok: 0, error: 0, timeout: 0, errors: {}, latency: { count: 0, p50: 0, p95: 0, p99: 0 } } }
 }
 
 export function createEngine(project: Project, opts: EngineOptions = {}): Engine {
@@ -103,6 +106,9 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
   let spikes = new Map<string, number>()
   let journeys = new Map<string, Journey>() // in progress
   let completed: Journey[] = []
+  let okLatencies: number[] = []
+  let latencyDirty = false
+  let silent = false // fast runs publish once at the end
 
   function findEdge(a: string, b: string): LabEdge | undefined {
     for (const e of edges.values()) {
@@ -217,8 +223,11 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
     },
     complete(packet, outcome) {
       const g = stats.global
-      if (outcome === 'ok') g.ok += 1
-      else if (outcome === 'timeout') g.timeout += 1
+      if (outcome === 'ok') {
+        g.ok += 1
+        if (okLatencies.length < LATENCY_LIMIT) okLatencies.push(now - packet.createdAt)
+        latencyDirty = true
+      } else if (outcome === 'timeout') g.timeout += 1
       else {
         g.error += 1
         g.errors[outcome] = (g.errors[outcome] ?? 0) + 1
@@ -242,7 +251,16 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
     return { down, cut, spikes: Object.fromEntries(spikes) }
   }
 
+  function refreshLatency() {
+    if (!latencyDirty) return
+    latencyDirty = false
+    const sorted = [...okLatencies].sort((a, b) => a - b)
+    const at = (q: number) => sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)]
+    stats.global.latency = { count: sorted.length, p50: at(0.5), p95: at(0.95), p99: at(0.99) }
+  }
+
   function snapshot(): SimState {
+    refreshLatency()
     return {
       status,
       tick,
@@ -255,6 +273,7 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
   }
 
   function emit() {
+    if (silent) return
     const s = snapshot()
     for (const l of listeners) l(s)
   }
@@ -330,6 +349,22 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
     spikes = new Map()
     journeys = new Map()
     completed = []
+    okLatencies = []
+    latencyDirty = false
+    emit()
+  }
+
+  function runFor(ms: number) {
+    if (timer !== undefined) clearI(timer)
+    timer = undefined
+    for (const id of nodes.keys()) if (!startedAt.has(id)) startedAt.set(id, now)
+    status = 'paused'
+    silent = true
+    try {
+      for (let t = 0; t < ms; t += tickMs) step(tickMs)
+    } finally {
+      silent = false
+    }
     emit()
   }
 
@@ -338,6 +373,7 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
     pause,
     reset,
     step,
+    runFor,
     subscribe(l) {
       listeners.add(l)
       return () => listeners.delete(l)

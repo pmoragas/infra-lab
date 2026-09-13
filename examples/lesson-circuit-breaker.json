@@ -1,0 +1,30 @@
+{
+  "id": "lesson-circuit-breaker",
+  "name": "6. Circuit breaker",
+  "settings": { "seed": 6, "speed": 1 },
+  "guide": {
+    "question": "The payment API is mostly down: 90% of calls fail after 1.5 s. What does a circuit breaker buy you?",
+    "steps": [
+      "Press ⏩ 60 s. Select the Circuit Breaker: it keeps opening, and while open it answers 'circuit-open' in milliseconds instead of letting calls wait 1.5 s to fail.",
+      "Select the Third-party API and note how many calls reached it (Live → in).",
+      "Set the breaker's Failure threshold to 1000 so it never opens. Press Reset, then ⏩ 60 s.",
+      "Success is low either way, because the API is down (the breaker even blocks a few calls that would have worked). The difference: every call now waits 1.5 s to fail, and the struggling API gets hit several times harder. In Packets, click failed requests to compare how long each one took."
+    ]
+  },
+  "nodes": [
+    { "id": "world-1", "type": "world", "position": { "x": 40, "y": 200 },
+      "config": { "name": "Checkout", "rps": 10, "pattern": "steady", "clients": 50, "keyspace": 100, "timeoutMs": 10000 } },
+    { "id": "lb-1", "type": "lb", "position": { "x": 300, "y": 200 },
+      "config": { "algorithm": "roundRobin", "weights": {}, "timeoutMs": 5000, "retries": 0, "healthCheck": true } },
+    { "id": "circuitBreaker-1", "type": "circuitBreaker", "position": { "x": 560, "y": 200 },
+      "config": { "failureThreshold": 5, "windowMs": 5000, "openMs": 5000 } },
+    { "id": "thirdParty-1", "type": "thirdParty", "position": { "x": 820, "y": 200 },
+      "config": { "latencyMs": 1500, "jitterMs": 200, "failureRate": 0.9, "down": false } }
+  ],
+  "edges": [
+    { "id": "e-world-1-lb-1", "source": "world-1", "target": "lb-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-lb-1-circuitBreaker-1", "source": "lb-1", "target": "circuitBreaker-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-circuitBreaker-1-thirdParty-1", "source": "circuitBreaker-1", "target": "thirdParty-1", "config": { "latencyMs": 20, "lossPct": 0 } }
+  ],
+  "failures": []
+}

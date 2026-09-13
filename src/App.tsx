@@ -8,6 +8,7 @@ import { Toolbar } from './ui/Toolbar'
 import { ConfigPanel } from './ui/ConfigPanel'
 import { PacketsPanel } from './ui/PacketsPanel'
 import { ChaosPanel } from './ui/ChaosPanel'
+import { GuideCard } from './ui/GuideCard'
 import { useLabStore } from './store/useLabStore'
 
 function useUndoShortcuts() {
@@ -32,6 +33,7 @@ function useUndoShortcuts() {
 
 export default function App() {
   const panel = useLabStore((s) => s.panel)
+  const projectId = useLabStore((s) => s.projectId)
   useUndoShortcuts()
 
   return (
@@ -44,6 +46,7 @@ export default function App() {
             <Canvas />
             {panel === 'packets' && <PacketsPanel />}
             {panel === 'chaos' && <ChaosPanel />}
+            <GuideCard key={projectId} />
             <Toolbar />
           </main>
           <ConfigPanel />

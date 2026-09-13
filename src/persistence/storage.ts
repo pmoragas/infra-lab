@@ -15,7 +15,9 @@ export function importJson(raw: string): Project {
     !Array.isArray(p.nodes) ||
     !Array.isArray(p.edges) ||
     typeof p.settings?.seed !== 'number' ||
-    (p.failures !== undefined && !Array.isArray(p.failures))
+    (p.failures !== undefined && !Array.isArray(p.failures)) ||
+    (p.guide !== undefined && (typeof p.guide?.question !== 'string' || !Array.isArray(p.guide?.steps))) ||
+    (p.snapshots !== undefined && !Array.isArray(p.snapshots))
   ) {
     throw new Error('Not an Infra Lab project')
   }

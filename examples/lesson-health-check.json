@@ -1,0 +1,33 @@
+{
+  "id": "lesson-health-check",
+  "name": "1. Dead server",
+  "settings": { "seed": 1, "speed": 1 },
+  "guide": {
+    "question": "One of three servers is dead. Does the load balancer notice?",
+    "steps": [
+      "Press ⏩ 60 s, then open Packets: about a third of requests fail with a timeout, because the load balancer keeps sending them to server-2.",
+      "Select the Load Balancer and turn on Health check.",
+      "Press Reset, then ⏩ 60 s again: success is back to 100%, because the load balancer now skips the dead server.",
+      "Bonus: turn Health check off and set Retries to 1. Requests succeed again, but the ones that tried server-2 first waited a full second. Compare p95."
+    ]
+  },
+  "nodes": [
+    { "id": "world-1", "type": "world", "position": { "x": 40, "y": 200 },
+      "config": { "name": "Users", "rps": 10, "pattern": "steady", "clients": 50, "keyspace": 100, "timeoutMs": 5000 } },
+    { "id": "lb-1", "type": "lb", "position": { "x": 300, "y": 200 },
+      "config": { "algorithm": "roundRobin", "weights": {}, "timeoutMs": 1000, "retries": 0, "healthCheck": false } },
+    { "id": "server-1", "type": "server", "position": { "x": 560, "y": 80 },
+      "config": { "capacity": 10, "processingMs": 50, "queueSize": 20, "failureRate": 0, "jitterMs": 0, "warmupMs": 0, "down": false } },
+    { "id": "server-2", "type": "server", "position": { "x": 560, "y": 200 },
+      "config": { "capacity": 10, "processingMs": 50, "queueSize": 20, "failureRate": 0, "jitterMs": 0, "warmupMs": 0, "down": true } },
+    { "id": "server-3", "type": "server", "position": { "x": 560, "y": 320 },
+      "config": { "capacity": 10, "processingMs": 50, "queueSize": 20, "failureRate": 0, "jitterMs": 0, "warmupMs": 0, "down": false } }
+  ],
+  "edges": [
+    { "id": "e-world-1-lb-1", "source": "world-1", "target": "lb-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-lb-1-server-1", "source": "lb-1", "target": "server-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-lb-1-server-2", "source": "lb-1", "target": "server-2", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-lb-1-server-3", "source": "lb-1", "target": "server-3", "config": { "latencyMs": 20, "lossPct": 0 } }
+  ],
+  "failures": []
+}

@@ -24,6 +24,15 @@ export function Toolbar() {
       <button className="btn" data-testid="btn-reset" onClick={sim.reset} disabled={status === 'idle'}>
         Reset
       </button>
+      <button
+        className="btn"
+        data-testid="btn-fast"
+        title="Simulate the next 60 seconds instantly, then pause on the results"
+        onClick={() => sim.fastForward(60_000)}
+        disabled={nodeCount === 0}
+      >
+        ⏩ 60 s
+      </button>
       <span className="toolbar__divider" />
       <label className="toolbar__field">
         <span className="toolbar__label">Speed</span>

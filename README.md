@@ -2,6 +2,8 @@
 
 Web app that works as an infrastructure lab: drop components into a project area, connect them, and watch packets move.
 
+**Live:** https://pmoragas.github.io/infra-lab/
+
 First simulator: World → Load Balancer → Server Nodes.
 
 Components: World/Client, DNS, CDN, API Gateway, Rate Limiter, Load Balancer, Circuit Breaker, Server, Consumer, Cache, Database, Message Queue, Third-party API. Every component and link has its own config panel (click it). Global speed and seed live in the run bar.
@@ -14,6 +16,9 @@ Features:
 - **Undo / redo:** header buttons, Ctrl+Z and Ctrl+Shift+Z.
 - **Share:** copies a link with the whole project compressed in the URL (no backend).
 - **Export / Import:** project JSON, or a PNG / SVG image of the graph. Light and dark theme.
+- **Lessons:** seven presets, each with a question and steps: dead server, slow server, cache, cache flush, rate limiter, circuit breaker, queue vs direct call. Open one from the empty sheet or Header → Examples.
+- **Fast run:** ⏩ 60 s simulates a minute instantly and pauses on the results.
+- **Compare runs:** in the Packets panel, save results, change one thing, run again, and read the runs side by side.
 
 Plan: Notion → App Projects → Infra Lab (RADIO).
 
@@ -26,7 +31,7 @@ Vite + React + TypeScript · React Flow (`@xyflow/react`) · Zustand · html-to-
 - `src/engine/` — pure TS simulation engine, no DOM. `nodes/` holds one handler per component type; `defaults.ts` the per-type defaults.
 - `src/sim/` — bridges the engine to the store; pushes live edits into a running engine.
 - `src/canvas/` — React Flow canvas, node component, packet layer.
-- `src/ui/` — Header, Sidebar, Toolbar (run bar), ConfigPanel (driven by `configSchema.ts`), PacketsPanel, ChaosPanel, image export.
+- `src/ui/` — Header, Sidebar, Toolbar (run bar), ConfigPanel (driven by `configSchema.ts`), PacketsPanel (with compare), ChaosPanel, GuideCard, EmptyState, image export, bundled examples (`examples.ts`).
 - `src/store/` — Zustand store (project graph, failures, undo/redo history, latest sim snapshot).
 - `src/persistence/` — saved projects in localStorage, URL routing and autosave (`autosave.ts`), share links, JSON export/import.
 - `e2e/` — Playwright specs, one per milestone.
@@ -36,6 +41,10 @@ Vite + React + TypeScript · React Flow (`@xyflow/react`) · Zustand · html-to-
 `examples/ecommerce.json` — one storefront system, single World: DNS → CDN → gateway → rate limiter → LB, which fans out to cache-aside servers backed by a replicated DB, a circuit breaker guarding a payment API, and an order-events queue with a consumer and DLQ. Header → Import.
 
 `examples/url-shortener.json` — read-heavy redirect service: DNS → CDN (hot links at the edge) → gateway → per-client rate limiter → LB, which fans out to two servers with cache-aside over a database with read replicas, plus a click-analytics queue with a consumer and DLQ.
+
+`examples/lesson-*.json` — the seven lessons; each has a `guide` (question + steps) shown on the canvas.
+
+Every file in `examples/` is bundled into the app (Header → Examples), and `src/ui/examples.test.ts` runs each one to check that every wired-up component gets traffic.
 
 ## Run
 
@@ -47,3 +56,7 @@ pnpm e2e        # end-to-end (Playwright, needs: npx playwright install chromium
 ```
 
 On WSL, if `pnpm` resolves to the Windows binary, use `corepack pnpm@9 <cmd>` from the nvm Node.
+
+## Deploy
+
+Every push to `main` runs `.github/workflows/deploy.yml`: unit tests, build, then publish `dist/` to GitHub Pages. Production builds use the `/infra-lab/` base path.

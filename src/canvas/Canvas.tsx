@@ -5,6 +5,7 @@ import { LabNode } from './nodes/LabNode'
 import { PacketLayer } from './PacketLayer'
 import type { NodeType } from '../engine/types'
 import { LABEL } from '../engine/defaults'
+import { EmptyState } from '../ui/EmptyState'
 
 const nodeTypes = Object.fromEntries(Object.keys(LABEL).map((t) => [t, LabNode])) as Record<NodeType, typeof LabNode>
 
@@ -79,6 +80,7 @@ export function Canvas() {
         <Background variant={BackgroundVariant.Lines} gap={28} />
         <PacketLayer />
       </ReactFlow>
+      {nodes.length === 0 && <EmptyState />}
     </div>
   )
 }

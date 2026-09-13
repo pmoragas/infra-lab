@@ -9,7 +9,7 @@ import {
   type EdgeChange,
   type Connection,
 } from '@xyflow/react'
-import type { EdgeConfig, Failure, NodeConfig, NodeType, Project, ProjectSettings, SimState } from '../engine/types'
+import type { EdgeConfig, Failure, Guide, NodeConfig, NodeType, Project, ProjectSettings, ResultSnapshot, SimState } from '../engine/types'
 import { DEFAULT_CONFIG, DEFAULT_EDGE, DEFAULT_SETTINGS, LABEL, withDefaults } from '../engine/defaults'
 
 export type LabFlowNode = Node<{ config: NodeConfig }, NodeType>
@@ -30,6 +30,7 @@ const newId = (type: NodeType) => `${type}-${(counters[type] = (counters[type] ?
 
 const HISTORY_LIMIT = 100
 const COALESCE_MS = 1000
+const SNAPSHOT_LIMIT = 3
 
 export interface LabStore {
   projectId: string
@@ -38,6 +39,8 @@ export interface LabStore {
   nodes: LabFlowNode[]
   edges: LabFlowEdge[]
   failures: Failure[]
+  guide: Guide | null // lesson text for presets; not undoable
+  snapshots: ResultSnapshot[] // pinned run results, oldest first
   selectedId: string | null // node id
   selectedEdgeId: string | null
   sim: SimState | null
@@ -58,6 +61,10 @@ export interface LabStore {
   addFailure(failure: Omit<Failure, 'id'>): string
   updateFailure(id: string, patch: Partial<Omit<Failure, 'id'>>): void
   removeFailure(id: string): void
+  /** Pin the current run's results; null when nothing has completed yet. */
+  addSnapshot(): string | null
+  renameSnapshot(id: string, label: string): void
+  removeSnapshot(id: string): void
   undo(): void
   redo(): void
   select(id: string | null): void
@@ -123,6 +130,8 @@ export const useLabStore = create<LabStore>((set, get) => {
     nodes: [],
     edges: [],
     failures: [],
+    guide: null,
+    snapshots: [],
     selectedId: null,
     selectedEdgeId: null,
     sim: null,
@@ -213,6 +222,36 @@ export const useLabStore = create<LabStore>((set, get) => {
       set((s) => ({ failures: s.failures.filter((f) => f.id !== id) }))
     },
 
+    addSnapshot() {
+      const s = get()
+      const g = s.sim?.stats.global
+      const completed = g ? g.ok + g.error + g.timeout : 0
+      if (!s.sim || !g || completed === 0) return null
+      const used = new Set(s.snapshots.map((x) => x.label))
+      const label = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].find((c) => !used.has(c)) ?? String(s.snapshots.length + 1)
+      const snapshot: ResultSnapshot = {
+        id: `r-${crypto.randomUUID().slice(0, 6)}`,
+        label,
+        simMs: s.sim.now,
+        completed,
+        successPct: Math.round((g.ok / completed) * 100),
+        failed: g.error + g.timeout,
+        p50: g.latency.p50,
+        p95: g.latency.p95,
+        p99: g.latency.p99,
+      }
+      set({ snapshots: [...s.snapshots, snapshot].slice(-SNAPSHOT_LIMIT) })
+      return snapshot.id
+    },
+
+    renameSnapshot(id, label) {
+      set((s) => ({ snapshots: s.snapshots.map((x) => (x.id === id ? { ...x, label } : x)) }))
+    },
+
+    removeSnapshot(id) {
+      set((s) => ({ snapshots: s.snapshots.filter((x) => x.id !== id) }))
+    },
+
     undo() {
       const s = get()
       const prev = s.past.at(-1)
@@ -294,6 +333,8 @@ export const useLabStore = create<LabStore>((set, get) => {
         nodes: s.nodes.map((n) => ({ id: n.id, type: n.type!, position: n.position, config: n.data.config })),
         edges: s.edges.map((e) => ({ id: e.id, source: e.source, target: e.target, config: e.data?.config })),
         failures: s.failures,
+        ...(s.guide ? { guide: s.guide } : {}),
+        ...(s.snapshots.length > 0 ? { snapshots: s.snapshots } : {}),
       }
     },
 
@@ -322,6 +363,8 @@ export const useLabStore = create<LabStore>((set, get) => {
           data: { config: { ...DEFAULT_EDGE, ...e.config } },
         })),
         failures: project.failures ?? [],
+        guide: project.guide ?? null,
+        snapshots: project.snapshots ?? [],
         selectedId: null,
         selectedEdgeId: null,
         sim: null,

@@ -1,0 +1,33 @@
+{
+  "id": "lesson-slow-server",
+  "name": "2. Slow server",
+  "settings": { "seed": 2, "speed": 1 },
+  "guide": {
+    "question": "One server is twenty times slower. Round robin or least connections?",
+    "steps": [
+      "Press ⏩ 60 s, open Packets and note p95: every third request waits about 2 s on server-3.",
+      "Select the Load Balancer and switch Algorithm to Least Connections.",
+      "Press Reset, then ⏩ 60 s: p95 drops, because new requests go to whichever server has the fewest still open, so server-3 gets far fewer.",
+      "Select the Load Balancer and compare how many requests each server got (Live → server-1, server-2, server-3)."
+    ]
+  },
+  "nodes": [
+    { "id": "world-1", "type": "world", "position": { "x": 40, "y": 200 },
+      "config": { "name": "Users", "rps": 12, "pattern": "steady", "clients": 50, "keyspace": 100, "timeoutMs": 20000 } },
+    { "id": "lb-1", "type": "lb", "position": { "x": 300, "y": 200 },
+      "config": { "algorithm": "roundRobin", "weights": {}, "timeoutMs": 10000, "retries": 0, "healthCheck": true } },
+    { "id": "server-1", "type": "server", "position": { "x": 560, "y": 80 },
+      "config": { "capacity": 4, "processingMs": 100, "queueSize": 50, "failureRate": 0, "jitterMs": 0, "warmupMs": 0, "down": false } },
+    { "id": "server-2", "type": "server", "position": { "x": 560, "y": 200 },
+      "config": { "capacity": 4, "processingMs": 100, "queueSize": 50, "failureRate": 0, "jitterMs": 0, "warmupMs": 0, "down": false } },
+    { "id": "server-3", "type": "server", "position": { "x": 560, "y": 320 },
+      "config": { "capacity": 8, "processingMs": 2000, "queueSize": 100, "failureRate": 0, "jitterMs": 0, "warmupMs": 0, "down": false } }
+  ],
+  "edges": [
+    { "id": "e-world-1-lb-1", "source": "world-1", "target": "lb-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-lb-1-server-1", "source": "lb-1", "target": "server-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-lb-1-server-2", "source": "lb-1", "target": "server-2", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-lb-1-server-3", "source": "lb-1", "target": "server-3", "config": { "latencyMs": 20, "lossPct": 0 } }
+  ],
+  "failures": []
+}

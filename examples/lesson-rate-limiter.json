@@ -1,0 +1,35 @@
+{
+  "id": "lesson-rate-limiter",
+  "name": "5. Rate limiter",
+  "settings": { "seed": 5, "speed": 1 },
+  "guide": {
+    "question": "Traffic spikes to 5× for 15 seconds. Does the rate limiter protect the servers?",
+    "steps": [
+      "Press ⏩ 60 s and open Packets. Select the Rate Limiter: during the spike (15–30 s) it rejected the excess straight away (Live → rejected), while the requests it let through were served in time.",
+      "Set the Rate Limiter's Rate to 100 so it lets everything through.",
+      "Press Reset, then ⏩ 60 s: the servers' queues grow, requests wait longer than the load balancer's 1.5 s timeout and fail even though the servers still do the work, and p95 jumps for everyone, not just the extra traffic.",
+      "Compare: the limiter turned a couple of hundred requests into instant rejections; without it, hundreds more time out after the servers already spent work on them. Fast 'no' beats slow failure."
+    ]
+  },
+  "nodes": [
+    { "id": "world-1", "type": "world", "position": { "x": 40, "y": 200 },
+      "config": { "name": "Users", "rps": 10, "pattern": "steady", "clients": 50, "keyspace": 100, "timeoutMs": 3000 } },
+    { "id": "rateLimiter-1", "type": "rateLimiter", "position": { "x": 300, "y": 200 },
+      "config": { "algorithm": "tokenBucket", "ratePerSec": 35, "burst": 40, "perClient": false } },
+    { "id": "lb-1", "type": "lb", "position": { "x": 560, "y": 200 },
+      "config": { "algorithm": "roundRobin", "weights": {}, "timeoutMs": 1500, "retries": 0, "healthCheck": true } },
+    { "id": "server-1", "type": "server", "position": { "x": 820, "y": 110 },
+      "config": { "capacity": 4, "processingMs": 200, "queueSize": 60, "failureRate": 0, "jitterMs": 0, "warmupMs": 0, "down": false } },
+    { "id": "server-2", "type": "server", "position": { "x": 820, "y": 290 },
+      "config": { "capacity": 4, "processingMs": 200, "queueSize": 60, "failureRate": 0, "jitterMs": 0, "warmupMs": 0, "down": false } }
+  ],
+  "edges": [
+    { "id": "e-world-1-rateLimiter-1", "source": "world-1", "target": "rateLimiter-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-rateLimiter-1-lb-1", "source": "rateLimiter-1", "target": "lb-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-lb-1-server-1", "source": "lb-1", "target": "server-1", "config": { "latencyMs": 20, "lossPct": 0 } },
+    { "id": "e-lb-1-server-2", "source": "lb-1", "target": "server-2", "config": { "latencyMs": 20, "lossPct": 0 } }
+  ],
+  "failures": [
+    { "id": "f-spike", "kind": "spike", "target": "world-1", "atMs": 15000, "durationMs": 15000, "factor": 5 }
+  ]
+}

@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { useLabStore } from '../store/useLabStore'
 import { exportJson, importJson } from '../persistence/storage'
 import { createProject, deleteCurrentProject, importProject, openProject } from '../persistence/autosave'
 import { listProjects } from '../persistence/projects'
 import { shareUrl } from '../persistence/share'
 import { exportImage } from './exportImage'
+import { EXAMPLES } from './examples'
 
 type Theme = 'light' | 'dark'
 const THEME_KEY = 'infra-lab:theme'
@@ -177,6 +178,19 @@ export function Header() {
           {theme === 'dark' ? '☀' : '☾'}
         </button>
         <span className="header__divider" />
+        <Menu label="Examples ▾" testId="btn-examples" align="right">
+          {() =>
+            EXAMPLES.map((ex, i) => (
+              <Fragment key={ex.id}>
+                {i > 0 && !!ex.guide !== !!EXAMPLES[i - 1].guide && <div className="menu__sep" />}
+                <button role="menuitem" className="menu__item menu__item--rich" data-testid={`example-${ex.id}`} onClick={() => importProject(ex)}>
+                  {ex.guide ? `Lesson · ${ex.name}` : ex.name}
+                  {ex.guide && <span className="menu__hint">{ex.guide.question}</span>}
+                </button>
+              </Fragment>
+            ))
+          }
+        </Menu>
         <button className="btn" data-testid="btn-share" disabled={nodeCount === 0} onClick={() => void onShare()}>
           {copied ? 'Link copied' : 'Share'}
         </button>

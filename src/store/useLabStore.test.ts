@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useLabStore } from './useLabStore'
+import type { SimState } from '../engine/types'
 
 beforeEach(() => {
-  useLabStore.setState({ nodes: [], edges: [], failures: [], selectedId: null, selectedEdgeId: null, sim: null, past: [], future: [] })
+  useLabStore.setState({ nodes: [], edges: [], failures: [], snapshots: [], selectedId: null, selectedEdgeId: null, sim: null, past: [], future: [] })
 })
 
 const conn = (source: string, target: string) => ({ source, target, sourceHandle: null, targetHandle: null })
@@ -142,5 +143,41 @@ describe('undo / redo', () => {
     const st = useLabStore.getState()
     expect(st.past).toHaveLength(0)
     expect(st.toProject().failures).toHaveLength(1)
+  })
+
+  it('pins up to 3 labelled results, drops the oldest, and saves them with the project', () => {
+    const sim = (ok: number, error: number, p95: number) =>
+      ({
+        status: 'paused',
+        tick: 1,
+        now: 60_000,
+        packets: [],
+        journeys: [],
+        chaos: { down: [], cut: [], spikes: {} },
+        stats: { nodes: {}, global: { sent: ok + error, ok, error, timeout: 0, errors: {}, latency: { count: ok, p50: 100, p95, p99: p95 } } },
+      }) as SimState
+    const s = useLabStore.getState()
+    expect(s.addSnapshot()).toBeNull()
+    s.setSim(sim(90, 10, 500))
+    s.addSnapshot()
+    s.setSim(sim(100, 0, 200))
+    s.addSnapshot()
+    expect(useLabStore.getState().snapshots.map((x) => [x.label, x.successPct, x.failed, x.p95])).toEqual([
+      ['A', 90, 10, 500],
+      ['B', 100, 0, 200],
+    ])
+    expect(useLabStore.getState().toProject().snapshots).toHaveLength(2)
+    s.addSnapshot()
+    s.addSnapshot()
+    expect(useLabStore.getState().snapshots.map((x) => x.label)).toEqual(['B', 'C', 'D'])
+  })
+
+  it('a preset’s guide survives load → save, and projects without one stay without', () => {
+    const s = useLabStore.getState()
+    const guide = { question: 'Does the LB notice?', steps: ['Run', 'Compare'] }
+    s.loadProject({ id: 'p2', name: 'lesson', settings: { seed: 1, speed: 1 }, nodes: [], edges: [], guide })
+    expect(useLabStore.getState().toProject().guide).toEqual(guide)
+    s.loadProject({ id: 'p3', name: 'plain', settings: { seed: 1, speed: 1 }, nodes: [], edges: [] })
+    expect('guide' in useLabStore.getState().toProject()).toBe(false)
   })
 })

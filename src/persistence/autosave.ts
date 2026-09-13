@@ -95,7 +95,8 @@ export async function initSession() {
       next.edges === prev.edges &&
       next.name === prev.name &&
       next.settings === prev.settings &&
-      next.failures === prev.failures
+      next.failures === prev.failures &&
+      next.snapshots === prev.snapshots
     ) {
       return
     }
