@@ -7,6 +7,8 @@ export function Toolbar() {
   const nodeCount = useLabStore((s) => s.nodes.length)
   const settings = useLabStore((s) => s.settings)
   const updateSettings = useLabStore((s) => s.updateSettings)
+  const panel = useLabStore((s) => s.panel)
+  const openPanel = useLabStore((s) => s.openPanel)
 
   return (
     <div className="toolbar" data-testid="toolbar">
@@ -43,6 +45,21 @@ export function Toolbar() {
           onChange={(e) => updateSettings({ seed: Number(e.target.value) || 0 })}
         />
       </label>
+      <span className="toolbar__divider" />
+      <button
+        className={`btn${panel === 'packets' ? ' btn--active' : ''}`}
+        data-testid="btn-packets"
+        onClick={() => openPanel(panel === 'packets' ? null : 'packets')}
+      >
+        Packets
+      </button>
+      <button
+        className={`btn${panel === 'chaos' ? ' btn--active' : ''}`}
+        data-testid="btn-chaos"
+        onClick={() => openPanel(panel === 'chaos' ? null : 'chaos')}
+      >
+        Chaos
+      </button>
       <span className="toolbar__divider" />
       <div className="toolbar__live">
         <span className={`toolbar__dot${status === 'running' ? ' toolbar__dot--running' : ''}`} />

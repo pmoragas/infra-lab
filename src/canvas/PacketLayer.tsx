@@ -39,6 +39,8 @@ export function PacketLayer() {
   const packets = useLabStore((s) => s.sim?.packets)
   const nodes = useLabStore((s) => s.nodes)
   const edges = useLabStore((s) => s.edges)
+  const journeyId = useLabStore((s) => s.journeyId)
+  const openJourney = useLabStore((s) => s.openJourney)
   if (!packets || packets.length === 0) return null
 
   const byId = new Map(nodes.map((n) => [n.id, n]))
@@ -53,14 +55,15 @@ export function PacketLayer() {
           return (
             <circle
               key={p.id}
-              className={`packet packet--${p.phase}${p.status === 'error' ? ' packet--error' : ''}`}
+              className={`packet nopan packet--${p.phase}${p.status === 'error' ? ' packet--error' : ''}${p.id === journeyId ? ' packet--selected' : ''}`}
               data-testid="packet"
               data-phase={p.phase}
               data-status={p.status}
               data-to={p.to}
               cx={pos.x}
               cy={pos.y}
-              r={4.5}
+              r={p.id === journeyId ? 7 : 4.5}
+              onClick={() => openJourney(p.id)}
             />
           )
         })}

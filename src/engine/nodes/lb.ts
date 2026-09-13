@@ -27,11 +27,13 @@ function pick(node: LabNode, packet: Packet, ctx: NodeContext, st: LbState, excl
     case 'random':
       return targets[Math.floor(ctx.random() * targets.length)]
     case 'leastConnections': {
+      // Count requests this LB has open per target: pass-through nodes (breaker, queue) report no load of their own.
+      const open = new Map<string, number>()
+      for (const p of st.pending.values()) open.set(p.target, (open.get(p.target) ?? 0) + 1)
       let best = targets[0]
       let bestLoad = Infinity
       for (const t of targets) {
-        const s = ctx.stats(t)
-        const load = s.active + s.queued
+        const load = open.get(t) ?? 0
         if (load < bestLoad) {
           bestLoad = load
           best = t

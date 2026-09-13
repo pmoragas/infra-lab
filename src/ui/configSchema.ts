@@ -53,7 +53,6 @@ export const NODE_FIELDS: Record<NodeType, Field[]> = {
     { key: 'failureRate', label: 'Failure rate', type: 'number', ...pct },
     { key: 'jitterMs', label: 'Jitter (ms)', type: 'number', min: 0, step: 50 },
     { key: 'warmupMs', label: 'Warm-up (ms)', type: 'number', min: 0, step: 500, hint: 'Processing doubled while warming up' },
-    { key: 'down', label: 'Down', type: 'boolean' },
   ],
   cache: [
     { key: 'maxEntries', label: 'Max entries', type: 'number', min: 1, step: 1 },
@@ -89,7 +88,6 @@ export const NODE_FIELDS: Record<NodeType, Field[]> = {
     { key: 'latencyMs', label: 'Query latency (ms)', type: 'number', min: 1, step: 10 },
     { key: 'replicas', label: 'Read replicas', type: 'number', min: 0, step: 1 },
     { key: 'readRatio', label: 'Read ratio', type: 'number', ...pct },
-    { key: 'down', label: 'Down', type: 'boolean' },
   ],
   queue: [{ key: 'maxSize', label: 'Max size', type: 'number', min: 1, step: 1 }],
   consumer: [
@@ -111,7 +109,6 @@ export const NODE_FIELDS: Record<NodeType, Field[]> = {
     { key: 'latencyMs', label: 'Latency (ms)', type: 'number', min: 0, step: 10 },
     { key: 'jitterMs', label: 'Jitter (ms)', type: 'number', min: 0, step: 10 },
     { key: 'failureRate', label: 'Failure rate', type: 'number', ...pct },
-    { key: 'down', label: 'Down', type: 'boolean' },
   ],
 }
 

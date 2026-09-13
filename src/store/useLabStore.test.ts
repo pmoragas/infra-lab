@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { useLabStore } from './useLabStore'
 
 beforeEach(() => {
-  useLabStore.setState({ nodes: [], edges: [], selectedId: null, selectedEdgeId: null, sim: null })
+  useLabStore.setState({ nodes: [], edges: [], failures: [], selectedId: null, selectedEdgeId: null, sim: null, past: [], future: [] })
 })
 
 const conn = (source: string, target: string) => ({ source, target, sourceHandle: null, targetHandle: null })
@@ -76,5 +76,71 @@ describe('lab store', () => {
     expect(st.nodes[1].data.config).toMatchObject({ capacity: 2, processingMs: 100, queueSize: 0 })
     expect(st.edges[0].data?.config).toEqual({ latencyMs: 300, lossPct: 0 })
     expect(st.addNode('server', { x: 0, y: 0 })).toBe('server-8')
+  })
+})
+
+const capacity = (id: string) => (useLabStore.getState().nodes.find((n) => n.id === id)!.data.config as { capacity: number }).capacity
+
+describe('undo / redo', () => {
+  it('undoes and redoes graph changes in order', () => {
+    const s = useLabStore.getState()
+    const a = s.addNode('server', { x: 0, y: 0 })
+    const b = s.addNode('server', { x: 0, y: 0 })
+    s.onConnect(conn(a, b))
+    s.undo()
+    expect(useLabStore.getState().edges).toHaveLength(0)
+    s.undo()
+    expect(useLabStore.getState().nodes.map((n) => n.id)).toEqual([a])
+    s.redo()
+    s.redo()
+    expect(useLabStore.getState().nodes).toHaveLength(2)
+    expect(useLabStore.getState().edges).toHaveLength(1)
+    expect(useLabStore.getState().future).toHaveLength(0)
+  })
+
+  it('typing into one field is a single undo step', () => {
+    const s = useLabStore.getState()
+    const a = s.addNode('server', { x: 0, y: 0 })
+    s.updateNodeConfig(a, { capacity: 1 })
+    s.updateNodeConfig(a, { capacity: 12 })
+    s.updateNodeConfig(a, { capacity: 123 })
+    s.undo()
+    expect(capacity(a)).toBe(5)
+  })
+
+  it('a new change clears the redo stack', () => {
+    const s = useLabStore.getState()
+    s.addNode('server', { x: 0, y: 0 })
+    s.undo()
+    expect(useLabStore.getState().future).toHaveLength(1)
+    s.addNode('lb', { x: 0, y: 0 })
+    expect(useLabStore.getState().future).toHaveLength(0)
+  })
+
+  it('removing a node drops failures aimed at it, and undo brings both back', () => {
+    const s = useLabStore.getState()
+    const a = s.addNode('server', { x: 0, y: 0 })
+    s.addFailure({ kind: 'kill', target: a, atMs: 1000, durationMs: 2000, factor: 1 })
+    s.removeNode(a)
+    expect(useLabStore.getState().failures).toHaveLength(0)
+    s.undo()
+    expect(useLabStore.getState().nodes).toHaveLength(1)
+    expect(useLabStore.getState().failures).toHaveLength(1)
+  })
+
+  it('loading a project clears history and includes its failures', () => {
+    const s = useLabStore.getState()
+    s.addNode('server', { x: 0, y: 0 })
+    s.loadProject({
+      id: 'p1',
+      name: 'x',
+      settings: { seed: 1, speed: 1 },
+      nodes: [],
+      edges: [],
+      failures: [{ id: 'f1', kind: 'spike', target: 'world-1', atMs: 0, durationMs: 1000, factor: 3 }],
+    })
+    const st = useLabStore.getState()
+    expect(st.past).toHaveLength(0)
+    expect(st.toProject().failures).toHaveLength(1)
   })
 })

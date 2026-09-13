@@ -24,7 +24,7 @@ Vite + React + TypeScript · React Flow (`@xyflow/react`) · Zustand · Vitest �
 
 ## Examples
 
-`examples/ecommerce.json` — one storefront system, single World: DNS → CDN → gateway → rate limiter → LB, which fans out to cache-aside servers backed by a replicated DB, a circuit breaker guarding a payment API, and an order-events queue with a consumer and DLQ. Toolbar → Import.
+`examples/ecommerce.json` — one storefront system, single World: DNS → CDN → gateway → rate limiter → LB, which fans out to cache-aside servers backed by a replicated DB, a circuit breaker guarding a payment API, and an order-events queue with a consumer and DLQ. Header → Import.
 
 ## Run
 

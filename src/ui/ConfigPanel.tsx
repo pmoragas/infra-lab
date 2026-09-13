@@ -135,6 +135,18 @@ function StatsBlock({ s }: { s: NodeStats | undefined }) {
   )
 }
 
+function ChaosToggle({ down, label, testId, onToggle }: { down: boolean; label: string; testId: string; onToggle: () => void }) {
+  return (
+    <div className="config__chaos">
+      <div className="eyebrow">Failure injection</div>
+      <button className={`btn config__kill${down ? '' : ' btn--danger'}`} data-testid={testId} onClick={onToggle}>
+        {label}
+      </button>
+      <span className="config__hint">Schedule failures over sim time in the Chaos panel.</span>
+    </div>
+  )
+}
+
 function Head({ title, sub }: { title: string; sub: string }) {
   return (
     <div className="config__head">
@@ -164,6 +176,12 @@ export function ConfigPanel() {
         {EDGE_FIELDS.map((f) => (
           <FieldInput key={f.key} field={f} value={(cfg as unknown as Record<string, unknown>)[f.key]} onChange={(v) => updateEdge(edge.id, { [f.key]: v })} />
         ))}
+        <ChaosToggle
+          down={cfg.down === true}
+          label={cfg.down ? 'Restore link' : 'Cut link'}
+          testId="btn-cut"
+          onToggle={() => updateEdge(edge.id, { down: !cfg.down })}
+        />
         <button className="btn btn--danger config__delete" data-testid="cfg-delete" onClick={() => removeEdge(edge.id)}>
           Remove link
         </button>
@@ -184,6 +202,12 @@ export function ConfigPanel() {
         .map((f) => (
           <FieldInput key={f.key} field={f} value={cfg[f.key]} targets={targets} onChange={(v) => updateNode(node.id, { [f.key]: v })} />
         ))}
+      <ChaosToggle
+        down={cfg.down === true}
+        label={cfg.down === true ? 'Revive node' : 'Kill node'}
+        testId="btn-kill"
+        onToggle={() => updateNode(node.id, { down: cfg.down !== true })}
+      />
       <StatsBlock s={stats} />
       <button className="btn btn--danger config__delete" data-testid="cfg-delete" onClick={() => removeNode(node.id)}>
         Remove node

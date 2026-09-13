@@ -1,28 +1,6 @@
 import type { Project } from '../engine/types'
 import { LABEL } from '../engine/defaults'
 
-export const STORAGE_KEY = 'infra-lab:project'
-
-type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
-
-export function saveProject(project: Project, storage: StorageLike = localStorage): void {
-  storage.setItem(STORAGE_KEY, JSON.stringify(project))
-}
-
-export function loadProject(storage: StorageLike = localStorage): Project | null {
-  const raw = storage.getItem(STORAGE_KEY)
-  if (!raw) return null
-  try {
-    return importJson(raw)
-  } catch {
-    return null
-  }
-}
-
-export function clearProject(storage: StorageLike = localStorage): void {
-  storage.removeItem(STORAGE_KEY)
-}
-
 export function exportJson(project: Project): string {
   return JSON.stringify(project, null, 2)
 }
@@ -36,7 +14,8 @@ export function importJson(raw: string): Project {
     typeof p.name !== 'string' ||
     !Array.isArray(p.nodes) ||
     !Array.isArray(p.edges) ||
-    typeof p.settings?.seed !== 'number'
+    typeof p.settings?.seed !== 'number' ||
+    (p.failures !== undefined && !Array.isArray(p.failures))
   ) {
     throw new Error('Not an Infra Lab project')
   }

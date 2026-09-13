@@ -41,6 +41,7 @@ function syncToEngine(next: LabStore, prev: LabStore) {
     for (const id of prevById.keys()) if (!nextIds.has(id)) engine.removeEdge(id)
   }
   if (next.settings.speed !== prev.settings.speed) engine.setSpeed(next.settings.speed)
+  if (next.failures !== prev.failures) engine.setFailures(next.failures)
 }
 
 useLabStore.subscribe(syncToEngine)
@@ -58,6 +59,9 @@ export const sim = {
     engine = null
     unsubscribe = null
     useLabStore.getState().setSim(null)
+  },
+  journey(id: string) {
+    return engine?.getJourney(id)
   },
   /** The live engine, if any. Used to push graph/config changes while running. */
   get engine() {

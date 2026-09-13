@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { wlsProject } from '../fixtures'
+import { project, wlsProject } from '../fixtures'
 import { boot, run } from '../testUtil'
 import type { ConfigByType } from '../types'
 
@@ -46,6 +46,25 @@ describe('lb algorithms', () => {
     run(e, 10_000)
     const t = e.getState().stats.nodes.lb.perTarget
     expect(t.s2).toBeGreaterThan(t.s1 * 2)
+  })
+
+  it('least connections also spreads to pass-through targets like a circuit breaker', () => {
+    const p = project()
+      .node('world', 'world', { rps: 10 })
+      .node('lb', 'lb', { algorithm: 'leastConnections' })
+      .node('cb', 'circuitBreaker')
+      .node('tp', 'thirdParty', { latencyMs: 200, jitterMs: 0, failureRate: 0 })
+      .node('s1', 'server', { capacity: 50, processingMs: 200 })
+      .edge('world', 'lb')
+      .edge('lb', 'cb')
+      .edge('cb', 'tp')
+      .edge('lb', 's1')
+      .build()
+    const e = boot(p)
+    run(e, 5000)
+    const t = e.getState().stats.nodes.lb.perTarget
+    expect(t.cb).toBeGreaterThan(10)
+    expect(t.s1).toBeGreaterThan(10)
   })
 
   it('random is seeded and hits more than one server', () => {

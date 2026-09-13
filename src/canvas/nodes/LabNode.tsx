@@ -36,7 +36,9 @@ export function LabNode(props: NodeProps<LabFlowNode>) {
   const stats = useLabStore((s) => s.sim?.stats.nodes[props.id])
   const loadPct = stats?.loadPct ?? 0
   const overloaded = LOAD_TYPES.has(type) && loadPct > 80
-  const down = (props.data.config as { down?: boolean }).down === true
+  const chaosDown = useLabStore((s) => s.sim?.chaos.down.includes(props.id) ?? false)
+  const spike = useLabStore((s) => s.sim?.chaos.spikes[props.id])
+  const down = (props.data.config as { down?: boolean }).down === true || chaosDown
   const title = type === 'world' ? (props.data.config as WorldConfig).name || LABEL.world : LABEL[type]
 
   return (
@@ -46,6 +48,7 @@ export function LabNode(props: NodeProps<LabFlowNode>) {
         `lab-node--${type}`,
         overloaded ? 'lab-node--overloaded' : '',
         down ? 'lab-node--down' : '',
+        spike ? 'lab-node--spiked' : '',
         props.selected ? 'lab-node--selected' : '',
       ].join(' ')}
       data-testid={`node-${type}`}
@@ -55,7 +58,7 @@ export function LabNode(props: NodeProps<LabFlowNode>) {
       {!NO_TARGET.has(type) && <Handle type="target" position={Position.Left} />}
       <div className="lab-node__head">
         <span className="lab-node__title">{title}</span>
-        <span className="lab-node__id">{down ? 'down' : overloaded ? 'saturated' : props.id}</span>
+        <span className="lab-node__id">{down ? 'down' : spike ? `spike ×${spike}` : overloaded ? 'saturated' : props.id}</span>
       </div>
       <div className="lab-node__sub">{summary(type, props.data.config)}</div>
       {stats &&

@@ -131,6 +131,7 @@ export interface LabNode {
 export interface EdgeConfig {
   latencyMs: number // time for a packet to cross this link
   lossPct: number // 0..100
+  down?: boolean // link cut: everything on it is lost
 }
 
 export interface LabEdge {
@@ -145,12 +146,25 @@ export interface ProjectSettings {
   speed: number // sim-time multiplier: 0.25 … 4
 }
 
+export type FailureKind = 'kill' | 'partition' | 'spike' | 'flush'
+
+/** Scheduled failure on `target` (node id, or edge id for 'partition') from atMs for durationMs of sim time. */
+export interface Failure {
+  id: string
+  kind: FailureKind
+  target: string
+  atMs: number
+  durationMs: number // ignored by 'flush', which is instant
+  factor: number // 'spike' only: traffic multiplier
+}
+
 export interface Project {
   id: string
   name: string
   nodes: LabNode[]
   edges: LabEdge[]
   settings: ProjectSettings
+  failures?: Failure[]
 }
 
 // Runtime only
@@ -207,12 +221,37 @@ export interface Stats {
   global: GlobalStats
 }
 
+export interface Hop {
+  node: string
+  at: number
+  phase: Phase
+  lost?: boolean // never arrived: link loss or cut
+}
+
+export interface Journey {
+  id: string
+  clientId: string
+  key: number
+  startedAt: number
+  endedAt?: number
+  outcome?: string // 'ok', 'timeout' or an error reason
+  hops: Hop[]
+}
+
+export interface ChaosState {
+  down: string[] // nodes down right now (toggled or scheduled)
+  cut: string[] // links cut right now
+  spikes: Record<string, number> // world id → active traffic multiplier
+}
+
 export interface SimState {
   status: SimStatus
   tick: number
   now: number // sim time in ms
   packets: Packet[]
   stats: Stats
+  journeys: Journey[] // recently completed, oldest first
+  chaos: ChaosState
 }
 
 // Node handler contract — see plan (I — Interface)
