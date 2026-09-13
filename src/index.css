@@ -128,6 +128,7 @@ select {
 }
 
 .app__body {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: grid;
@@ -574,7 +575,19 @@ select {
 
 /* Sidebar */
 
+.sidebar-shell {
+  position: relative;
+  display: flex;
+  min-height: 0;
+}
+
+.sidebar-rail {
+  display: none;
+}
+
 .sidebar {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -583,6 +596,110 @@ select {
   overflow-y: auto;
   border-right: 1px solid var(--rule);
   background: var(--panel);
+}
+
+.sidebar__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar__search-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 12.5px;
+}
+
+.sidebar__search-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.sidebar__search-kbd {
+  position: absolute;
+  right: 8px;
+  padding: 1px 4px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.sidebar__result-count {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+
+.sidebar__flat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar__recents {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar__recent-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.sidebar__recent-chip {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.sidebar__recent-chip:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.sidebar__group-toggle {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar__caret {
+  font-size: 9px;
+  color: var(--ink-3);
+  transition: transform 0.15s;
+}
+
+.sidebar__caret--open {
+  transform: rotate(90deg);
+}
+
+.sidebar__group-count {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-3);
 }
 
 .sidebar__intro {
@@ -1482,4 +1599,69 @@ select {
 .chaos__item .btn--icon {
   width: 26px;
   height: 26px;
+}
+
+/* Narrow viewports: the palette collapses into a search icon that opens as
+   an overlay instead of a fixed column, and the inspector floats over the
+   canvas instead of squeezing it. */
+@media (max-width: 900px) {
+  .app__body {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+  }
+
+  .sidebar-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 44px;
+    padding: 10px 0;
+    border-right: 1px solid var(--rule);
+    background: var(--panel);
+  }
+
+  .sidebar-rail__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--paper);
+    color: var(--ink-2);
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .sidebar-rail__btn--active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .sidebar {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 44px;
+    bottom: 0;
+    z-index: 24;
+    max-width: calc(100% - 44px);
+    box-shadow: var(--shadow);
+  }
+
+  .sidebar--open {
+    display: flex;
+  }
+
+  .config {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 24;
+    max-width: calc(100% - 44px);
+    box-shadow: var(--shadow);
+  }
 }
