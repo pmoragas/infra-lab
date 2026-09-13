@@ -2,6 +2,7 @@ import { useLabStore, type LabFlowNode } from '../store/useLabStore'
 import { sim } from '../sim/controller'
 import { LABEL } from '../engine/defaults'
 import type { Journey, RunWindow } from '../engine/types'
+import { summarizeEvents } from './chaosEvents'
 
 const ms = (v: number | undefined) => (v === undefined ? '–' : `${Math.round(v)} ms`)
 const latency = (j: Journey) => (j.endedAt ?? j.startedAt) - j.startedAt
@@ -29,6 +30,7 @@ const COMPARE_ROWS: [string, (r: Row) => string][] = [
   ['p50', (r) => (r.p50 ? ms(r.p50) : '–')],
   ['p95', (r) => (r.p95 ? ms(r.p95) : '–')],
   ['p99', (r) => (r.p99 ? ms(r.p99) : '–')],
+  ['events', (r) => summarizeEvents(r.events).join('\n') || '–'],
 ]
 
 /** Pin a run's results, change one thing, run again, and read the columns side by side. */
@@ -36,6 +38,7 @@ function Compare() {
   const snapshots = useLabStore((s) => s.snapshots)
   const global = useLabStore((s) => s.sim?.stats.global)
   const simMs = useLabStore((s) => s.sim?.now ?? 0)
+  const events = useLabStore((s) => s.sim?.events)
   const { addSnapshot, renameSnapshot, removeSnapshot } = useLabStore.getState()
   const completed = global ? global.ok + global.error + global.timeout : 0
   const current: Row | undefined =
@@ -43,6 +46,7 @@ function Compare() {
       ? {
           fromMs: 0,
           simMs,
+          events,
           completed,
           successPct: Math.round((global.ok / completed) * 100),
           failed: global.error + global.timeout,
@@ -89,7 +93,7 @@ function Compare() {
             </thead>
             <tbody>
               {COMPARE_ROWS.map(([label, fmt]) => (
-                <tr key={label}>
+                <tr key={label} className={label === 'events' ? 'compare__events' : undefined}>
                   <td>{label}</td>
                   {snapshots.map((sn) => (
                     <td key={sn.id}>{fmt(sn)}</td>
@@ -107,12 +111,16 @@ function Compare() {
 
 function Overview({ journeys, onOpen }: { journeys: Journey[]; onOpen: (id: string) => void }) {
   const global = useLabStore((s) => s.sim?.stats.global)
+  const simNow = useLabStore((s) => s.sim?.now ?? 0)
   const lat = global?.latency.count ? global.latency : undefined
   const total = global ? global.ok + global.error + global.timeout : 0
   const failed = global ? global.error + global.timeout : 0
 
   return (
     <>
+      <div className="tiles__caption" data-testid="tiles-caption">
+        Whole run · 0–{Math.round(simNow / 1000)} s
+      </div>
       <div className="tiles">
         <Tile label="p50 latency" value={ms(lat?.p50)} testId="stat-p50" />
         <Tile label="p95 latency" value={ms(lat?.p95)} testId="stat-p95" />

@@ -3,6 +3,7 @@ import { DRAG_MIME } from '../canvas/Canvas'
 import { useLabStore } from '../store/useLabStore'
 import { DEFAULT_CONFIG, LABEL } from '../engine/defaults'
 import { summary } from './configSchema'
+import { ROUTING } from './explain'
 import type { NodeType } from '../engine/types'
 
 const GROUPS: { title: string; shape: string; types: NodeType[] }[] = [
@@ -59,6 +60,7 @@ export function Sidebar() {
               key={type}
               className={`sidebar__item sidebar__item--${type}`}
               draggable
+              title={ROUTING[type]}
               data-testid={`palette-${type}`}
               onDragStart={(e) => onDragStart(e, type)}
               onClick={() => addNode(type, place(type))}

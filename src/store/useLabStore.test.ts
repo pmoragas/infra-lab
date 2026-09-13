@@ -154,6 +154,7 @@ describe('undo / redo', () => {
         packets: [],
         journeys: [],
         chaos: { down: [], cut: [], spikes: {} },
+        events: [],
         stats: { nodes: {}, global: { sent: ok + error, ok, error, timeout: 0, errors: {}, latency: { count: ok, p50: 100, p95, p99: p95 } } },
       }) as SimState
     const s = useLabStore.getState()

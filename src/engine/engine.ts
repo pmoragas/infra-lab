@@ -2,6 +2,7 @@ import { createRng } from './rng'
 import { handlers } from './nodes'
 import { DEFAULT_EDGE, DEFAULT_SETTINGS, withDefaults } from './defaults'
 import type {
+  ChaosEvent,
   ChaosState,
   Failure,
   Journey,
@@ -54,6 +55,7 @@ export interface Engine {
 const JOURNEY_LIMIT = 200
 const JOURNEY_STALE_MS = 60_000
 const LATENCY_LIMIT = 100_000
+const EVENT_LIMIT = 100
 
 export function emptyNodeStats(): NodeStats {
   return {
@@ -109,6 +111,8 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
   let scheduledDown = new Set<string>()
   let scheduledCut = new Set<string>()
   let spikes = new Map<string, number>()
+  let activeFailures = new Set<string>()
+  let events: ChaosEvent[] = []
   let journeys = new Map<string, Journey>() // in progress
   let completed: Journey[] = []
   let okLatencies: number[] = []
@@ -140,22 +144,36 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
     return j
   }
 
-  /** Scheduled failures active at `to`; flushes fire once when their time falls in [from, to). */
+  function logEvent(e: ChaosEvent) {
+    events.push(e)
+    if (events.length > EVENT_LIMIT) events = events.slice(-EVENT_LIMIT)
+  }
+
+  /** Scheduled failures active at `to`; flushes fire once when their time falls in [from, to). Starts and ends are logged. */
   function applyFailures(from: number, to: number) {
     const down = new Set<string>()
     const cut = new Set<string>()
     const sp = new Map<string, number>()
+    const active = new Set<string>()
     for (const f of failures) {
+      const base = { failureId: f.id, kind: f.kind, target: f.target }
       if (f.kind === 'flush') {
-        if (f.atMs >= from && f.atMs < to) (nodeState.get(f.target) as { entries?: Map<number, number> } | undefined)?.entries?.clear()
+        if (f.atMs >= from && f.atMs < to) {
+          ;(nodeState.get(f.target) as { entries?: Map<number, number> } | undefined)?.entries?.clear()
+          logEvent({ ...base, phase: 'start', atMs: f.atMs })
+        }
         continue
       }
-      if (to < f.atMs || to >= f.atMs + f.durationMs) continue
+      const on = to >= f.atMs && to < f.atMs + f.durationMs
+      if (on !== activeFailures.has(f.id)) logEvent({ ...base, phase: on ? 'start' : 'end', atMs: on ? f.atMs : f.atMs + f.durationMs })
+      if (!on) continue
+      active.add(f.id)
       if (f.kind === 'kill') down.add(f.target)
       else if (f.kind === 'partition') cut.add(f.target)
       else sp.set(f.target, (sp.get(f.target) ?? 1) * f.factor)
     }
     for (const id of scheduledDown) if (!down.has(id)) startedAt.set(id, to) // back up: warm-up starts again
+    activeFailures = active
     scheduledDown = down
     scheduledCut = cut
     spikes = sp
@@ -273,6 +291,7 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
       stats: structuredClone(stats),
       journeys: completed.slice(), // completed journeys are never mutated again
       chaos: chaosState(),
+      events: events.slice(),
     }
   }
 
@@ -351,6 +370,8 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
     scheduledDown = new Set()
     scheduledCut = new Set()
     spikes = new Map()
+    activeFailures = new Set()
+    events = []
     journeys = new Map()
     completed = []
     okLatencies = []
@@ -386,6 +407,7 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
       p50: percentile(window, 0.5),
       p95: percentile(window, 0.95),
       p99: percentile(window, 0.99),
+      events: events.filter((e) => e.atMs >= before.from),
     }
   }
 

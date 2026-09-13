@@ -45,6 +45,8 @@ export interface ServerConfig {
   failureRate: number // 0..1
   jitterMs: number
   warmupMs: number // processing doubled during warm-up after (re)start
+  cacheTimeoutMs: number // no answer from the cache in time → treat it as a miss
+  backendTimeoutMs: number // no answer from the backend in time → fail the request
   down: boolean
 }
 
@@ -158,6 +160,15 @@ export interface Failure {
   factor: number // 'spike' only: traffic multiplier
 }
 
+/** A scheduled failure starting or ending (a flush only starts). */
+export interface ChaosEvent {
+  failureId: string
+  kind: FailureKind
+  target: string
+  phase: 'start' | 'end'
+  atMs: number
+}
+
 /** A lesson attached to a preset: the question to answer and what to do, in order. */
 export interface Guide {
   question: string
@@ -174,6 +185,7 @@ export interface RunWindow {
   p50: number
   p95: number
   p99: number
+  events?: ChaosEvent[] // scheduled failures that started or ended in the window
 }
 
 /** Results pinned from a run, to compare against other runs. */
@@ -286,6 +298,7 @@ export interface SimState {
   stats: Stats
   journeys: Journey[] // recently completed, oldest first
   chaos: ChaosState
+  events: ChaosEvent[] // recent scheduled failures starting or ending, oldest first
 }
 
 // Node handler contract — see plan (I — Interface)

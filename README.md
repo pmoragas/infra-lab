@@ -11,14 +11,15 @@ Components: World/Client, DNS, CDN, API Gateway, Rate Limiter, Load Balancer, Ci
 Features:
 
 - **Packets** panel: p50 / p95 / p99 latency, success rate, recent requests; click a request or a moving packet to see its hop-by-hop journey.
-- **Failure injection:** kill any node or cut any link from its panel; the **Chaos** panel schedules kill, partition, traffic spike and cache flush in sim time.
+- **Failure injection:** kill any node or cut any link from its panel; the **Chaos** panel schedules kill, partition, traffic spike and cache flush in sim time. Scheduled failures show as a ⚡ tag on the component, a banner while running, and an events row in fast-run results.
+- **Server timeouts:** a cache that doesn't answer in time counts as a miss (the server falls back to the database); a backend that doesn't answer in time fails the request. A dead dependency slows a server down instead of jamming it.
+- **Explanations:** the inspector (and hovering) says how each component uses its links; a server's links are labelled ① cache, ② on miss or ignored.
 - **Projects:** several saved in the browser, each at its own `#/p/<id>` URL; rename, create and delete from the header.
 - **Undo / redo:** header buttons, Ctrl+Z and Ctrl+Shift+Z.
 - **Share:** copies a link with the whole project compressed in the URL (no backend).
 - **Export / Import:** project JSON, or a PNG / SVG image of the graph. Light and dark theme.
-- **Lessons:** seven presets, each with a question and steps: dead server, slow server, cache, cache flush, rate limiter, circuit breaker, queue vs direct call. Open one from the empty sheet or Header → Examples.
-- **Fast run:** ⏩ 60 s simulates a minute instantly and pauses on the results.
-- **Compare runs:** in the Packets panel, save results, change one thing, run again, and read the runs side by side.
+- **Lessons:** seven presets, each with a question and steps: dead server, slow server, cache-aside, cache flush, rate limiter, circuit breaker, queue vs direct call. Open one from the empty sheet or Header → Examples.
+- **Fast run and compare:** each ⏩ 60 s simulates a minute instantly and adds a column with just that minute's results (success, failed, p50 / p95 / p99, events) to the Packets panel, so you can change one thing and press it again. Save whole run pins a live run.
 
 Plan: Notion → App Projects → Infra Lab (RADIO).
 

@@ -1,6 +1,7 @@
 import { useLabStore } from '../store/useLabStore'
 import { LABEL } from '../engine/defaults'
 import { EDGE_FIELDS, NODE_FIELDS, type Field } from './configSchema'
+import { LINK_EXPLAIN, ROUTING } from './explain'
 import type { NodeStats, NodeType } from '../engine/types'
 
 function FieldInput({
@@ -147,12 +148,15 @@ function ChaosToggle({ down, label, testId, onToggle }: { down: boolean; label: 
   )
 }
 
-function Head({ title, sub }: { title: string; sub: string }) {
+function Head({ title, sub, explain }: { title: string; sub: string; explain: string }) {
   return (
     <div className="config__head">
       <div className="eyebrow">Inspector</div>
       <h2 className="config__title">{title}</h2>
       <div className="config__id">{sub}</div>
+      <p className="config__explain" data-testid="explain">
+        {explain}
+      </p>
     </div>
   )
 }
@@ -172,7 +176,7 @@ export function ConfigPanel() {
     const cfg = edge.data?.config ?? { latencyMs: 300, lossPct: 0 }
     return (
       <aside className="config" data-testid="config-panel" data-edge-id={edge.id}>
-        <Head title="Link" sub={`${edge.source} → ${edge.target}`} />
+        <Head title="Link" sub={`${edge.source} → ${edge.target}`} explain={LINK_EXPLAIN} />
         {EDGE_FIELDS.map((f) => (
           <FieldInput key={f.key} field={f} value={(cfg as unknown as Record<string, unknown>)[f.key]} onChange={(v) => updateEdge(edge.id, { [f.key]: v })} />
         ))}
@@ -196,7 +200,7 @@ export function ConfigPanel() {
 
   return (
     <aside className="config" data-testid="config-panel" data-node-id={node.id}>
-      <Head title={LABEL[type]} sub={node.id} />
+      <Head title={LABEL[type]} sub={node.id} explain={ROUTING[type]} />
       {NODE_FIELDS[type]
         .filter((f) => f.type !== 'weights' || cfg.algorithm === 'weightedRoundRobin')
         .map((f) => (

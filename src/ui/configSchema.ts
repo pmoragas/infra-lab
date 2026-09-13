@@ -53,6 +53,8 @@ export const NODE_FIELDS: Record<NodeType, Field[]> = {
     { key: 'failureRate', label: 'Failure rate', type: 'number', ...pct },
     { key: 'jitterMs', label: 'Jitter (ms)', type: 'number', min: 0, step: 50 },
     { key: 'warmupMs', label: 'Warm-up (ms)', type: 'number', min: 0, step: 500, hint: 'Processing doubled while warming up' },
+    { key: 'cacheTimeoutMs', label: 'Cache timeout (ms)', type: 'number', min: 10, step: 50, hint: 'No answer from the cache in time counts as a miss' },
+    { key: 'backendTimeoutMs', label: 'Backend timeout (ms)', type: 'number', min: 100, step: 500, hint: 'No answer from the backend in time fails the request' },
   ],
   cache: [
     { key: 'maxEntries', label: 'Max entries', type: 'number', min: 1, step: 1 },

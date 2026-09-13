@@ -6,6 +6,7 @@ import { PacketLayer } from './PacketLayer'
 import type { NodeType } from '../engine/types'
 import { LABEL } from '../engine/defaults'
 import { EmptyState } from '../ui/EmptyState'
+import { serverLinkLabels } from '../ui/explain'
 
 const nodeTypes = Object.fromEntries(Object.keys(LABEL).map((t) => [t, LabNode])) as Record<NodeType, typeof LabNode>
 
@@ -40,8 +41,13 @@ export function Canvas() {
 
   const shownEdges = useMemo(() => {
     const cut = new Set(cutKey ? cutKey.split(',') : [])
-    return edges.map((e) => (cut.has(e.id) || e.data?.config.down ? { ...e, className: 'edge--cut' } : e))
-  }, [edges, cutKey])
+    const labels = serverLinkLabels(nodes, edges)
+    return edges.map((e) => {
+      const className = cut.has(e.id) || e.data?.config.down ? 'edge--cut' : undefined
+      const label = labels.get(e.id)
+      return className || label ? { ...e, className, label } : e
+    })
+  }, [edges, nodes, cutKey])
 
   const onDragOver = useCallback((e: DragEvent) => {
     e.preventDefault()

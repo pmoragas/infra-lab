@@ -9,6 +9,7 @@ import { ConfigPanel } from './ui/ConfigPanel'
 import { PacketsPanel } from './ui/PacketsPanel'
 import { ChaosPanel } from './ui/ChaosPanel'
 import { GuideCard } from './ui/GuideCard'
+import { ChaosBanner } from './ui/ChaosBanner'
 import { useLabStore } from './store/useLabStore'
 
 function useUndoShortcuts() {
@@ -47,6 +48,7 @@ export default function App() {
             {panel === 'packets' && <PacketsPanel />}
             {panel === 'chaos' && <ChaosPanel />}
             <GuideCard key={projectId} />
+            <ChaosBanner />
             <Toolbar />
           </main>
           <ConfigPanel />

@@ -1,14 +1,15 @@
 {
   "id": "lesson-cache",
-  "name": "3. Cache in front",
+  "name": "3. Cache-aside",
   "settings": { "seed": 3, "speed": 1 },
   "guide": {
-    "question": "The database can only answer about 13 queries a second. What does the cache change?",
+    "question": "The server checks the cache first and only asks the database on a miss (cache-aside). The database can only answer about 13 queries a second: what does the cache change?",
     "steps": [
       "Press ⏩ 60 s. In the Packets panel p95 stays low, because after a few misses the cache answers almost every request.",
       "Select the Database: it barely worked (Live → in).",
       "Remove the cache: click the Server → Cache link, press Remove link, then ⏩ 60 s. Every request now hits the database: requests queue up, many fail, and p95 explodes.",
-      "Press Ctrl+Z to bring the cache back, then ⏩ 60 s once more. Success recovers, but p95 stays high for a while: the database is still working through its backlog."
+      "Press Ctrl+Z to bring the cache back, then ⏩ 60 s once more. Success recovers, but p95 stays high for a while: the database is still working through its backlog.",
+      "Bonus: rewire it as read-through. Remove the Server → Database link, connect Cache → Database and set that link's latency to 5 ms (new links start at 300 ms). Press Reset, then ⏩ 60 s: the same 100% success with only a couple of dozen database queries, but now the cache fetches its own misses, and the server's single link is labelled ① cache."
     ]
   },
   "nodes": [

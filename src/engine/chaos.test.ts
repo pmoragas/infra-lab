@@ -55,6 +55,25 @@ describe('failure injection', () => {
     expect(spiked).toBeGreaterThan(40)
   })
 
+  it('logs when scheduled failures start and end, and each fast-run window lists its own', () => {
+    const p = {
+      ...wlsProject(1, { world: { rps: 2 }, edge: fast }),
+      failures: [failure({ kind: 'spike', target: 'world', atMs: 15_000, durationMs: 15_000, factor: 2 }), failure({ id: 'f2', kind: 'flush', target: 's1', atMs: 20_000 })],
+    }
+    const e = boot(p)
+    const first = e.runFor(60_000)
+    const log = [
+      ['spike', 'start', 15_000],
+      ['flush', 'start', 20_000],
+      ['spike', 'end', 30_000],
+    ]
+    expect(e.getState().events.map((x) => [x.kind, x.phase, x.atMs])).toEqual(log)
+    expect(first.events!.map((x) => [x.kind, x.phase, x.atMs])).toEqual(log)
+    expect(e.runFor(60_000).events).toEqual([])
+    e.reset()
+    expect(e.getState().events).toEqual([])
+  })
+
   it('flush empties a cache at its time, so the next reads miss', () => {
     const build = (failures: Failure[] = []) => ({
       ...project()

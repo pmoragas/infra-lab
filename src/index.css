@@ -444,6 +444,115 @@ select {
   color: var(--warm);
 }
 
+/* Chaos events, explanations, captions */
+
+.lab-node__tag {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 1px 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--warm-soft);
+  color: var(--warm);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lab-node--flushed {
+  border-color: var(--warm);
+  animation: lab-flash 1s ease-out 2;
+}
+
+@keyframes lab-flash {
+  from {
+    box-shadow: 0 0 0 7px var(--warm-soft), var(--shadow);
+  }
+  to {
+    box-shadow: var(--shadow);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lab-node--flushed {
+    animation: none;
+  }
+}
+
+.chaos-banner {
+  position: absolute;
+  right: 0;
+  bottom: 84px;
+  left: 0;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  margin: 0 auto;
+  pointer-events: none;
+}
+
+.chaos-banner__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid var(--warm);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-size: 12.5px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.chaos-banner__time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--warm);
+}
+
+.config__explain {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.tiles__caption {
+  margin-bottom: -4px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+
+.compare__table tr.compare__events td {
+  font-size: 10.5px;
+  white-space: pre-line;
+  vertical-align: top;
+  color: var(--warm);
+}
+
+.compare__table tr.compare__events td:first-child {
+  color: var(--ink-2);
+}
+
+.project-area .react-flow__edge-textbg {
+  fill: var(--panel);
+}
+
+.project-area .react-flow__edge-text {
+  fill: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
 .empty__example {
   height: auto;
   padding: 8px 12px;
@@ -772,9 +881,16 @@ select {
   background: var(--warm);
 }
 
+/* Fade the card's contents, not its ⚡ tag: the tag has to stay readable. */
 .lab-node--down {
-  opacity: 0.55;
   border-style: dashed;
+}
+
+.lab-node--down .lab-node__title,
+.lab-node--down .lab-node__sub,
+.lab-node--down .lab-node__stat,
+.lab-node--down .lab-node__load {
+  opacity: 0.5;
 }
 
 /* Packets */

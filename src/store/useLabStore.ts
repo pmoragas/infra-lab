@@ -246,6 +246,7 @@ export const useLabStore = create<LabStore>((set, get) => {
         p50: g.latency.p50,
         p95: g.latency.p95,
         p99: g.latency.p99,
+        events: s.sim.events,
       })
     },
 

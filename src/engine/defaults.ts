@@ -3,7 +3,7 @@ import type { ConfigByType, EdgeConfig, NodeType, ProjectSettings } from './type
 export const DEFAULT_CONFIG: { [K in NodeType]: ConfigByType[K] } = {
   world: { name: 'World', rps: 2, pattern: 'steady', burstEvery: 2000, burstSize: 10, clients: 5, keyspace: 20, timeoutMs: 15000 },
   lb: { algorithm: 'roundRobin', weights: {}, timeoutMs: 5000, retries: 1, healthCheck: true },
-  server: { capacity: 5, processingMs: 300, queueSize: 0, failureRate: 0, jitterMs: 0, warmupMs: 0, down: false },
+  server: { capacity: 5, processingMs: 300, queueSize: 0, failureRate: 0, jitterMs: 0, warmupMs: 0, cacheTimeoutMs: 1000, backendTimeoutMs: 5000, down: false },
   cache: { maxEntries: 10, ttlMs: 5000, latencyMs: 20 },
   cdn: { maxEntries: 50, ttlMs: 10000, latencyMs: 10 },
   rateLimiter: { algorithm: 'tokenBucket', ratePerSec: 5, burst: 5, perClient: false },
