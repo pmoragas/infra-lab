@@ -42,7 +42,7 @@ Vite + React + TypeScript · React Flow (`@xyflow/react`) · Zustand · html-to-
 
 `examples/ecommerce.json` — one storefront system, single World sending 85% `GET /products` and 15% `POST /checkout`: DNS → CDN → gateway → rate limiter → LB → three servers. Browsing is cache-aside over a replicated DB; a checkout writes to the DB, then calls a payment API behind a circuit breaker, then publishes to an order-events queue with a consumer and DLQ. Header → Examples.
 
-`examples/url-shortener.json` — read-heavy redirect service: DNS → CDN (hot links at the edge) → gateway → per-client rate limiter → LB, which fans out to two servers with cache-aside over a database with read replicas, plus a click-analytics queue with a consumer and DLQ.
+`examples/url-shortener.json` — read-heavy redirect service, 97% `GET /:code` and 3% `POST /shorten`: DNS → CDN (hot links at the edge) → gateway → per-client rate limiter → LB → two servers. A redirect is cache-aside over a database with read replicas, then publishes a click event to an analytics queue with a consumer and DLQ; a shorten writes to the database only.
 
 `examples/lesson-*.json` — the seven lessons; each has a `guide` (question + steps) shown on the canvas.
 
