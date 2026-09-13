@@ -60,7 +60,7 @@ export function PacketLayer() {
               data-to={p.to}
               cx={pos.x}
               cy={pos.y}
-              r={5}
+              r={4.5}
             />
           )
         })}

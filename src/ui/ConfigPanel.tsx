@@ -93,6 +93,17 @@ function FieldInput({
   }
 }
 
+const WARN_ROWS = new Set(['dropped', 'failed', 'rejected', 'timeouts'])
+
+function Row({ stat, label, value }: { stat: string; label: string; value: number | string }) {
+  return (
+    <div className="config__row" data-stat={stat}>
+      <span className="config__row-label">{label}</span>
+      <span className={`config__row-value${WARN_ROWS.has(stat) ? ' config__row-value--warn' : ''}`}>{value}</span>
+    </div>
+  )
+}
+
 function StatsBlock({ s }: { s: NodeStats | undefined }) {
   if (!s) return null
   const rows: [string, number | string][] = [
@@ -110,17 +121,26 @@ function StatsBlock({ s }: { s: NodeStats | undefined }) {
   ]
   return (
     <div className="config__stats" data-testid="node-stats">
-      {s.state && <div>state: {s.state}</div>}
-      {rows.filter(([, v]) => v !== 0).map(([k, v]) => (
-        <div key={k}>
-          {k}: {v}
-        </div>
-      ))}
+      <div className="eyebrow">Live</div>
+      {s.state && <Row stat="state" label="state" value={s.state} />}
+      {rows
+        .filter(([, v]) => v !== 0)
+        .map(([k, v]) => (
+          <Row key={k} stat={k} label={k} value={v} />
+        ))}
       {Object.entries(s.perTarget).map(([id, n]) => (
-        <div key={id}>
-          → {id}: {n}
-        </div>
+        <Row key={id} stat={`to:${id}`} label={`→ ${id}`} value={n} />
       ))}
+    </div>
+  )
+}
+
+function Head({ title, sub }: { title: string; sub: string }) {
+  return (
+    <div className="config__head">
+      <div className="eyebrow">Inspector</div>
+      <h2 className="config__title">{title}</h2>
+      <div className="config__id">{sub}</div>
     </div>
   )
 }
@@ -140,36 +160,33 @@ export function ConfigPanel() {
     const cfg = edge.data?.config ?? { latencyMs: 300, lossPct: 0 }
     return (
       <aside className="config" data-testid="config-panel" data-edge-id={edge.id}>
-        <h2>Link</h2>
-        <div className="config__id">
-          {edge.source} → {edge.target}
-        </div>
+        <Head title="Link" sub={`${edge.source} → ${edge.target}`} />
         {EDGE_FIELDS.map((f) => (
           <FieldInput key={f.key} field={f} value={(cfg as unknown as Record<string, unknown>)[f.key]} onChange={(v) => updateEdge(edge.id, { [f.key]: v })} />
         ))}
-        <button className="config__delete" data-testid="cfg-delete" onClick={() => removeEdge(edge.id)}>
-          Delete link
+        <button className="btn btn--danger config__delete" data-testid="cfg-delete" onClick={() => removeEdge(edge.id)}>
+          Remove link
         </button>
       </aside>
     )
   }
 
   if (!node) return null
+
   const type = node.type as NodeType
   const cfg = node.data.config as unknown as Record<string, unknown>
 
   return (
     <aside className="config" data-testid="config-panel" data-node-id={node.id}>
-      <h2>{LABEL[type]}</h2>
-      <div className="config__id">{node.id}</div>
+      <Head title={LABEL[type]} sub={node.id} />
       {NODE_FIELDS[type]
         .filter((f) => f.type !== 'weights' || cfg.algorithm === 'weightedRoundRobin')
         .map((f) => (
-        <FieldInput key={f.key} field={f} value={cfg[f.key]} targets={targets} onChange={(v) => updateNode(node.id, { [f.key]: v })} />
-      ))}
+          <FieldInput key={f.key} field={f} value={cfg[f.key]} targets={targets} onChange={(v) => updateNode(node.id, { [f.key]: v })} />
+        ))}
       <StatsBlock s={stats} />
-      <button className="config__delete" data-testid="cfg-delete" onClick={() => removeNode(node.id)}>
-        Delete
+      <button className="btn btn--danger config__delete" data-testid="cfg-delete" onClick={() => removeNode(node.id)}>
+        Remove node
       </button>
     </aside>
   )

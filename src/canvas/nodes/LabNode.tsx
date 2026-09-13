@@ -53,13 +53,26 @@ export function LabNode(props: NodeProps<LabFlowNode>) {
       data-load={loadPct}
     >
       {!NO_TARGET.has(type) && <Handle type="target" position={Position.Left} />}
-      <div className="lab-node__title">{title}</div>
+      <div className="lab-node__head">
+        <span className="lab-node__title">{title}</span>
+        <span className="lab-node__id">{down ? 'down' : overloaded ? 'saturated' : props.id}</span>
+      </div>
       <div className="lab-node__sub">{summary(type, props.data.config)}</div>
-      {stats && (
-        <div className="lab-node__load" data-testid="node-stat">
-          {statLine(type, stats)}
-        </div>
-      )}
+      {stats &&
+        (LOAD_TYPES.has(type) ? (
+          <div className="lab-node__load">
+            <span className="lab-node__bar">
+              <span className="lab-node__fill" style={{ width: `${Math.min(100, loadPct)}%` }} />
+            </span>
+            <span className="lab-node__pct" data-testid="node-stat">
+              {statLine(type, stats)}
+            </span>
+          </div>
+        ) : (
+          <div className="lab-node__stat" data-testid="node-stat">
+            {statLine(type, stats)}
+          </div>
+        ))}
       {!NO_SOURCE.has(type) && <Handle type="source" position={Position.Right} />}
     </div>
   )

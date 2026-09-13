@@ -1,5 +1,5 @@
 import { useCallback, type DragEvent } from 'react'
-import { ReactFlow, Background, useReactFlow } from '@xyflow/react'
+import { ReactFlow, Background, BackgroundVariant, useReactFlow } from '@xyflow/react'
 import { useLabStore } from '../store/useLabStore'
 import { LabNode } from './nodes/LabNode'
 import { PacketLayer } from './PacketLayer'
@@ -55,7 +55,7 @@ export function Canvas() {
         fitView={false}
         deleteKeyCode={['Backspace', 'Delete']}
       >
-        <Background />
+        <Background variant={BackgroundVariant.Lines} gap={28} />
         <PacketLayer />
       </ReactFlow>
     </div>

@@ -112,7 +112,7 @@ test.describe('M7: more components + granular config', () => {
     await page.waitForTimeout(3000)
     await expect(page.locator('[data-node-id="lb-1"] [data-testid="node-stat"]')).toHaveCount(1)
     await page.locator('[data-node-id="lb-1"]').click()
-    await expect(page.getByTestId('node-stats')).not.toContainText('in:')
+    await expect(page.getByTestId('node-stats').locator('[data-stat="in"]')).toHaveCount(0)
   })
 
   test('speed 4x advances sim time faster; seed is locked while running', async ({ page }) => {
@@ -122,8 +122,7 @@ test.describe('M7: more components + granular config', () => {
     await expect(page.getByTestId('cfg-seed')).toBeDisabled()
     await page.waitForTimeout(1500)
     await page.locator('[data-node-id="world-1"]').click()
-    const text = await page.getByTestId('node-stats').textContent()
-    const processed = Number(/processed: (\d+)/.exec(text ?? '')?.[1] ?? 0)
+    const processed = Number(await page.getByTestId('node-stats').locator('[data-stat="processed"] .config__row-value').textContent())
     expect(processed).toBeGreaterThan(6) // 2 rps × 1.5 s × 4x ≈ 12, minus in-flight
   })
 
@@ -135,8 +134,10 @@ test.describe('M7: more components + granular config', () => {
     await page.getByTestId('cfg-weight-server-1').fill('5')
     await page.getByTestId('btn-start').click()
     await page.waitForTimeout(3000)
-    const text = await page.getByTestId('node-stats').textContent()
-    const n = (id: string) => Number(new RegExp(`→ ${id}: (\\d+)`).exec(text ?? '')?.[1] ?? 0)
-    expect(n('server-1')).toBeGreaterThan(n('server-2') * 2)
+    const n = async (id: string) => {
+      const cell = page.getByTestId('node-stats').locator(`[data-stat="to:${id}"] .config__row-value`)
+      return (await cell.count()) ? Number(await cell.textContent()) : 0
+    }
+    expect(await n('server-1')).toBeGreaterThan((await n('server-2')) * 2)
   })
 })
