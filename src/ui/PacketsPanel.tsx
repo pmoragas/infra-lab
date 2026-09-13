@@ -1,7 +1,7 @@
 import { useLabStore, type LabFlowNode } from '../store/useLabStore'
 import { sim } from '../sim/controller'
 import { LABEL } from '../engine/defaults'
-import type { Journey, ResultSnapshot } from '../engine/types'
+import type { Journey, RunWindow } from '../engine/types'
 
 const ms = (v: number | undefined) => (v === undefined ? '–' : `${Math.round(v)} ms`)
 const latency = (j: Journey) => (j.endedAt ?? j.startedAt) - j.startedAt
@@ -17,10 +17,12 @@ function Tile({ label, value, testId }: { label: string; value: string; testId: 
   )
 }
 
-type Row = Omit<ResultSnapshot, 'id' | 'label'>
+type Row = RunWindow
+
+const sec = (msValue: number) => Math.round(msValue / 1000)
 
 const COMPARE_ROWS: [string, (r: Row) => string][] = [
-  ['sim time', (r) => `${Math.round(r.simMs / 1000)} s`],
+  ['window', (r) => `${sec(r.fromMs ?? 0)}–${sec(r.simMs)} s`],
   ['completed', (r) => String(r.completed)],
   ['success', (r) => `${r.successPct}%`],
   ['failed', (r) => String(r.failed)],
@@ -39,6 +41,7 @@ function Compare() {
   const current: Row | undefined =
     global && completed
       ? {
+          fromMs: 0,
           simMs,
           completed,
           successPct: Math.round((global.ok / completed) * 100),
@@ -54,11 +57,13 @@ function Compare() {
       <div className="compare__head">
         <div className="eyebrow">Compare runs</div>
         <button className="btn" data-testid="btn-snapshot" disabled={!current} onClick={() => addSnapshot()}>
-          Save results
+          Save whole run
         </button>
       </div>
       {snapshots.length === 0 ? (
-        <p className="drawer__empty">Save results, change one thing, Reset and run again: saved runs show up here next to the current one.</p>
+        <p className="drawer__empty">
+          Each ⏩ 60 s adds a column with the results of just that minute. Change one thing and press it again to compare. With Run, use Save whole run.
+        </p>
       ) : (
         <div className="compare__scroll">
           <table className="compare__table">
@@ -79,7 +84,7 @@ function Compare() {
                     </button>
                   </th>
                 ))}
-                <th>Now</th>
+                <th>Whole run</th>
               </tr>
             </thead>
             <tbody>

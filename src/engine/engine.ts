@@ -14,6 +14,7 @@ import type {
   Packet,
   PacketStatus,
   Project,
+  RunWindow,
   SimState,
   Stats,
   WorldConfig,
@@ -44,8 +45,8 @@ export interface Engine {
   updateEdgeConfig(id: string, patch: Partial<LabEdge['config']>): void
   setSpeed(speed: number): void
   setFailures(failures: Failure[]): void
-  /** Advance sim time by `ms` as fast as possible, then pause and publish a single snapshot. */
-  runFor(ms: number): void
+  /** Advance sim time by `ms` as fast as possible, pause, publish one snapshot, and return that window's results. */
+  runFor(ms: number): RunWindow
   /** A packet's journey so far, whether still in flight or recently completed. */
   getJourney(id: string): Journey | undefined
 }
@@ -71,6 +72,10 @@ export function emptyNodeStats(): NodeStats {
     loadPct: 0,
     perTarget: {},
   }
+}
+
+function percentile(sorted: number[], q: number): number {
+  return sorted.length ? sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)] : 0
 }
 
 function emptyStats(): Stats {
@@ -255,8 +260,7 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
     if (!latencyDirty) return
     latencyDirty = false
     const sorted = [...okLatencies].sort((a, b) => a - b)
-    const at = (q: number) => sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)]
-    stats.global.latency = { count: sorted.length, p50: at(0.5), p95: at(0.95), p99: at(0.99) }
+    stats.global.latency = { count: sorted.length, p50: percentile(sorted, 0.5), p95: percentile(sorted, 0.95), p99: percentile(sorted, 0.99) }
   }
 
   function snapshot(): SimState {
@@ -354,11 +358,13 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
     emit()
   }
 
-  function runFor(ms: number) {
+  function runFor(ms: number): RunWindow {
     if (timer !== undefined) clearI(timer)
     timer = undefined
     for (const id of nodes.keys()) if (!startedAt.has(id)) startedAt.set(id, now)
     status = 'paused'
+    const g = stats.global
+    const before = { from: now, ok: g.ok, failed: g.error + g.timeout, latencies: okLatencies.length }
     silent = true
     try {
       for (let t = 0; t < ms; t += tickMs) step(tickMs)
@@ -366,6 +372,21 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
       silent = false
     }
     emit()
+    // Requests that started before the window but finish inside it count here: that's when their outcome is known.
+    const ok = g.ok - before.ok
+    const failed = g.error + g.timeout - before.failed
+    const completed = ok + failed
+    const window = okLatencies.slice(before.latencies).sort((a, b) => a - b)
+    return {
+      fromMs: before.from,
+      simMs: now,
+      completed,
+      successPct: completed ? Math.round((ok / completed) * 100) : 0,
+      failed,
+      p50: percentile(window, 0.5),
+      p95: percentile(window, 0.95),
+      p99: percentile(window, 0.99),
+    }
   }
 
   return {

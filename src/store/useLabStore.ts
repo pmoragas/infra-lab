@@ -9,7 +9,7 @@ import {
   type EdgeChange,
   type Connection,
 } from '@xyflow/react'
-import type { EdgeConfig, Failure, Guide, NodeConfig, NodeType, Project, ProjectSettings, ResultSnapshot, SimState } from '../engine/types'
+import type { EdgeConfig, Failure, Guide, NodeConfig, NodeType, Project, ProjectSettings, ResultSnapshot, RunWindow, SimState } from '../engine/types'
 import { DEFAULT_CONFIG, DEFAULT_EDGE, DEFAULT_SETTINGS, LABEL, withDefaults } from '../engine/defaults'
 
 export type LabFlowNode = Node<{ config: NodeConfig }, NodeType>
@@ -61,8 +61,10 @@ export interface LabStore {
   addFailure(failure: Omit<Failure, 'id'>): string
   updateFailure(id: string, patch: Partial<Omit<Failure, 'id'>>): void
   removeFailure(id: string): void
-  /** Pin the current run's results; null when nothing has completed yet. */
+  /** Pin the whole current run's results; null when nothing has completed yet. */
   addSnapshot(): string | null
+  /** Pin the results of one fast-run window. */
+  addWindowSnapshot(window: RunWindow): string
   renameSnapshot(id: string, label: string): void
   removeSnapshot(id: string): void
   undo(): void
@@ -122,6 +124,14 @@ export const useLabStore = create<LabStore>((set, get) => {
   }
 
   const keys = (patch: object) => Object.keys(patch).sort().join(',')
+
+  const pushSnapshot = (data: RunWindow) => {
+    const s = get()
+    const numbers = s.snapshots.map((x) => Number(/^Run (\d+)$/.exec(x.label)?.[1] ?? 0))
+    const snapshot: ResultSnapshot = { ...data, id: `r-${crypto.randomUUID().slice(0, 6)}`, label: `Run ${Math.max(s.snapshots.length, ...numbers) + 1}` }
+    set({ snapshots: [...s.snapshots, snapshot].slice(-SNAPSHOT_LIMIT) })
+    return snapshot.id
+  }
 
   return {
     projectId: 'default',
@@ -227,11 +237,8 @@ export const useLabStore = create<LabStore>((set, get) => {
       const g = s.sim?.stats.global
       const completed = g ? g.ok + g.error + g.timeout : 0
       if (!s.sim || !g || completed === 0) return null
-      const used = new Set(s.snapshots.map((x) => x.label))
-      const label = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].find((c) => !used.has(c)) ?? String(s.snapshots.length + 1)
-      const snapshot: ResultSnapshot = {
-        id: `r-${crypto.randomUUID().slice(0, 6)}`,
-        label,
+      return pushSnapshot({
+        fromMs: 0,
         simMs: s.sim.now,
         completed,
         successPct: Math.round((g.ok / completed) * 100),
@@ -239,9 +246,11 @@ export const useLabStore = create<LabStore>((set, get) => {
         p50: g.latency.p50,
         p95: g.latency.p95,
         p99: g.latency.p99,
-      }
-      set({ snapshots: [...s.snapshots, snapshot].slice(-SNAPSHOT_LIMIT) })
-      return snapshot.id
+      })
+    },
+
+    addWindowSnapshot(window) {
+      return pushSnapshot(window)
     },
 
     renameSnapshot(id, label) {

@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test'
 import { buildWls } from './helpers'
 
 test.describe('M10: fast run', () => {
-  test('⏩ 60 s simulates a minute instantly and pauses on the results', async ({ page }) => {
+  test('⏩ 60 s simulates a minute instantly, pauses, and shows the results', async ({ page }) => {
     await buildWls(page, 1)
     await page.getByTestId('btn-fast').click()
     await expect(page.getByTestId('sim-status')).toHaveText('paused')
-    await page.getByTestId('btn-packets').click()
+    await expect(page.getByTestId('packets-panel')).toBeVisible()
     await expect(page.getByTestId('stat-p50')).toContainText('ms')
     const completed = Number(await page.getByTestId('stat-completed').textContent())
     expect(completed).toBeGreaterThan(100) // World default 2 rps × 60 s
@@ -14,21 +14,21 @@ test.describe('M10: fast run', () => {
 })
 
 test.describe('M10: compare runs', () => {
-  test('save results, run again, and read both runs side by side', async ({ page }) => {
+  test('each ⏩ 60 s adds a column for just that minute; Save whole run adds one too', async ({ page }) => {
     await buildWls(page, 1)
     await page.getByTestId('btn-fast').click()
-    await page.getByTestId('btn-packets').click()
-    await page.getByTestId('btn-snapshot').click()
     await expect(page.getByTestId('snapshot-col')).toHaveCount(1)
-    await expect(page.getByTestId('snapshot-label')).toHaveValue('A')
-
-    await page.getByTestId('btn-reset').click()
     await page.getByTestId('btn-fast').click()
-    await page.getByTestId('btn-snapshot').click()
     await expect(page.getByTestId('snapshot-col')).toHaveCount(2)
+    await expect(page.getByTestId('snapshot-label').nth(1)).toHaveValue('Run 2')
+    await expect(page.getByTestId('compare')).toContainText('60–120 s')
+
+    await page.getByTestId('btn-snapshot').click()
+    await expect(page.getByTestId('snapshot-col')).toHaveCount(3)
+    await expect(page.getByTestId('compare')).toContainText('0–120 s')
 
     await page.getByTestId('snapshot-remove').first().click()
-    await expect(page.getByTestId('snapshot-col')).toHaveCount(1)
+    await expect(page.getByTestId('snapshot-col')).toHaveCount(2)
   })
 })
 

@@ -5,10 +5,10 @@
   "guide": {
     "question": "The database can only answer about 13 queries a second. What does the cache change?",
     "steps": [
-      "Press ⏩ 60 s and open Packets: p95 stays low, because after a few misses the cache answers almost every request.",
+      "Press ⏩ 60 s. In the Packets panel p95 stays low, because after a few misses the cache answers almost every request.",
       "Select the Database: it barely worked (Live → in).",
-      "Now remove the cache: click the Server → Cache link, press Remove link, then Reset and ⏩ 60 s.",
-      "Every request now hits the database: requests queue up, many are dropped, and p95 explodes. Press Ctrl+Z to bring the cache back."
+      "Remove the cache: click the Server → Cache link, press Remove link, then ⏩ 60 s. Every request now hits the database: requests queue up, many fail, and p95 explodes.",
+      "Press Ctrl+Z to bring the cache back, then ⏩ 60 s once more. Success recovers, but p95 stays high for a while: the database is still working through its backlog."
     ]
   },
   "nodes": [

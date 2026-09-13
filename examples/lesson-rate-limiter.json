@@ -5,9 +5,9 @@
   "guide": {
     "question": "Traffic spikes to 5× for 15 seconds. Does the rate limiter protect the servers?",
     "steps": [
-      "Press ⏩ 60 s and open Packets. Select the Rate Limiter: during the spike (15–30 s) it rejected the excess straight away (Live → rejected), while the requests it let through were served in time.",
+      "Press ⏩ 60 s. Select the Rate Limiter: during the spike (15–30 s) it rejected the excess straight away (Live → rejected), while the requests it let through were served in time.",
       "Set the Rate Limiter's Rate to 100 so it lets everything through.",
-      "Press Reset, then ⏩ 60 s: the servers' queues grow, requests wait longer than the load balancer's 1.5 s timeout and fail even though the servers still do the work, and p95 jumps for everyone, not just the extra traffic.",
+      "Press Reset first, because the spike only happens at 15–30 s, then ⏩ 60 s and compare the columns: the servers' queues grow, requests wait longer than the load balancer's 1.5 s timeout and fail even though the servers still did the work, and p95 jumps for everyone.",
       "Compare: the limiter turned a couple of hundred requests into instant rejections; without it, hundreds more time out after the servers already spent work on them. Fast 'no' beats slow failure."
     ]
   },

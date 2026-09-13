@@ -60,9 +60,13 @@ export const sim = {
     unsubscribe = null
     useLabStore.getState().setSim(null)
   },
-  /** Simulate `ms` of sim time instantly, then leave the sim paused on the results. */
+  /** Simulate `ms` instantly, pause, pin that window's results as a compare column, and show them. */
   fastForward(ms: number) {
-    ensureEngine().runFor(ms)
+    const window = ensureEngine().runFor(ms)
+    const store = useLabStore.getState()
+    if (window.completed > 0) store.addWindowSnapshot(window)
+    store.openJourney(null)
+    store.openPanel('packets')
   },
   journey(id: string) {
     return engine?.getJourney(id)

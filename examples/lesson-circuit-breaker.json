@@ -7,7 +7,7 @@
     "steps": [
       "Press ⏩ 60 s. Select the Circuit Breaker: it keeps opening, and while open it answers 'circuit-open' in milliseconds instead of letting calls wait 1.5 s to fail.",
       "Select the Third-party API and note how many calls reached it (Live → in).",
-      "Set the breaker's Failure threshold to 1000 so it never opens. Press Reset, then ⏩ 60 s.",
+      "Set the breaker's Failure threshold to 1000 so it never opens. Press Reset first, because a breaker that is already open stays stuck, then ⏩ 60 s and compare the columns.",
       "Success is low either way, because the API is down (the breaker even blocks a few calls that would have worked). The difference: every call now waits 1.5 s to fail, and the struggling API gets hit several times harder. In Packets, click failed requests to compare how long each one took."
     ]
   },

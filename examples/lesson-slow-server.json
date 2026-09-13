@@ -5,10 +5,10 @@
   "guide": {
     "question": "One server is twenty times slower. Round robin or least connections?",
     "steps": [
-      "Press ⏩ 60 s, open Packets and note p95: every third request waits about 2 s on server-3.",
+      "Press ⏩ 60 s. In the Packets panel, note p95: every third request waits about 2 s on server-3.",
       "Select the Load Balancer and switch Algorithm to Least Connections.",
-      "Press Reset, then ⏩ 60 s: p95 drops, because new requests go to whichever server has the fewest still open, so server-3 gets far fewer.",
-      "Select the Load Balancer and compare how many requests each server got (Live → server-1, server-2, server-3)."
+      "Press ⏩ 60 s again and compare the columns: p95 drops to about 300 ms, because new requests go to whichever server has the fewest still open.",
+      "Select the Load Balancer: its Live counts cover the whole run. server-3 took a third of the first minute's requests, but only a couple of dozen in the second."
     ]
   },
   "nodes": [

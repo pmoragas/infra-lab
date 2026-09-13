@@ -5,10 +5,10 @@
   "guide": {
     "question": "One of three servers is dead. Does the load balancer notice?",
     "steps": [
-      "Press ⏩ 60 s, then open Packets: about a third of requests fail with a timeout, because the load balancer keeps sending them to server-2.",
+      "Press ⏩ 60 s. The Packets panel opens: about a third of requests failed with a timeout, because the load balancer keeps sending them to server-2.",
       "Select the Load Balancer and turn on Health check.",
-      "Press Reset, then ⏩ 60 s again: success is back to 100%, because the load balancer now skips the dead server.",
-      "Bonus: turn Health check off and set Retries to 1. Requests succeed again, but the ones that tried server-2 first waited a full second. Compare p95."
+      "Press ⏩ 60 s again. A second column appears for just that minute: success is back to about 100%, because the load balancer now skips the dead server. (A few requests already in flight still fail.)",
+      "Bonus: turn Health check off, set Retries to 1 and press ⏩ 60 s. Requests succeed again, but the ones that tried server-2 first waited a full second: compare p95 across the columns."
     ]
   },
   "nodes": [

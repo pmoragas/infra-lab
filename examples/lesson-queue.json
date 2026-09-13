@@ -8,7 +8,7 @@
       "Press ⏩ 60 s. Select Direct calls (the top World): most requests failed, because the server was full and dropped them (Live → failed).",
       "Select Queued jobs (the bottom World): every request was accepted straight away.",
       "Select the Message Queue: the work didn't disappear, it's waiting. About 3 jobs a second pile up: a queue swaps 'no' now for 'later'.",
-      "Add Consumers, each connected from the queue, until the backlog stops growing. How many do you need?"
+      "Add Consumers, each connected from the queue, and press ⏩ 60 s again. How many do you need before the backlog stops growing and starts to shrink?"
     ]
   },
   "nodes": [

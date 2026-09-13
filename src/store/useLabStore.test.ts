@@ -162,14 +162,23 @@ describe('undo / redo', () => {
     s.addSnapshot()
     s.setSim(sim(100, 0, 200))
     s.addSnapshot()
-    expect(useLabStore.getState().snapshots.map((x) => [x.label, x.successPct, x.failed, x.p95])).toEqual([
-      ['A', 90, 10, 500],
-      ['B', 100, 0, 200],
+    expect(useLabStore.getState().snapshots.map((x) => [x.label, x.fromMs, x.successPct, x.failed, x.p95])).toEqual([
+      ['Run 1', 0, 90, 10, 500],
+      ['Run 2', 0, 100, 0, 200],
     ])
     expect(useLabStore.getState().toProject().snapshots).toHaveLength(2)
     s.addSnapshot()
     s.addSnapshot()
-    expect(useLabStore.getState().snapshots.map((x) => x.label)).toEqual(['B', 'C', 'D'])
+    expect(useLabStore.getState().snapshots.map((x) => x.label)).toEqual(['Run 2', 'Run 3', 'Run 4'])
+  })
+
+  it('pins a fast-run window as it is, numbered after the runs already there', () => {
+    const s = useLabStore.getState()
+    const window = { fromMs: 60_000, simMs: 120_000, completed: 600, successPct: 99, failed: 4, p50: 250, p95: 250, p99: 250 }
+    s.addWindowSnapshot({ ...window, fromMs: 0, simMs: 60_000 })
+    s.addWindowSnapshot(window)
+    const last = useLabStore.getState().snapshots.at(-1)!
+    expect(last).toMatchObject({ ...window, label: 'Run 2' })
   })
 
   it('a preset’s guide survives load → save, and projects without one stay without', () => {

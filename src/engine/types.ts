@@ -164,17 +164,22 @@ export interface Guide {
   steps: string[]
 }
 
-/** Results pinned from a run, to compare against the next one. */
-export interface ResultSnapshot {
-  id: string
-  label: string
-  simMs: number
+/** Results for one stretch of sim time: a fast run's window, or a whole run from 0. */
+export interface RunWindow {
+  fromMs: number
+  simMs: number // end of the window
   completed: number
   successPct: number
   failed: number
   p50: number
   p95: number
   p99: number
+}
+
+/** Results pinned from a run, to compare against other runs. */
+export interface ResultSnapshot extends RunWindow {
+  id: string
+  label: string
 }
 
 export interface Project {
