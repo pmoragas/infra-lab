@@ -27,7 +27,8 @@ export const databaseHandler: NodeHandler = {
     }
     if (packet.phase === 'response') return // databases are leaves
     enter(node, packet)
-    const read = ctx.random() < cfg.readRatio
+    const kind = ctx.routeKind(packet.route)
+    const read = kind ? kind === 'read' : ctx.random() < cfg.readRatio
     const running = st.active.filter((q) => q.read === read).length
     if (running < capacityFor(cfg, read)) st.active.push({ packet, read, finishAt: ctx.now + cfg.latencyMs })
     else st.queue.push({ packet, read })

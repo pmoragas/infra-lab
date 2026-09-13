@@ -96,6 +96,7 @@ export async function initSession() {
       next.name === prev.name &&
       next.settings === prev.settings &&
       next.failures === prev.failures &&
+      next.routes === prev.routes &&
       next.snapshots === prev.snapshots
     ) {
       return

@@ -9,8 +9,8 @@ interface RrState {
   rr: number
 }
 
-/** Forward a request to the node's outgoing targets, round robin. Errors back if there is nowhere to go. */
-export function forward(node: LabNode, packet: Packet, ctx: NodeContext, targets = ctx.targets(node.id)) {
+/** Forward a request to the targets whose link carries its route, round robin. Errors back if there is nowhere to go. */
+export function forward(node: LabNode, packet: Packet, ctx: NodeContext, targets = ctx.targetsFor(node.id, packet.route)) {
   if (targets.length === 0) {
     ctx.stats(node.id).rejected += 1
     ctx.respond(node.id, packet, 'error', 'no-route')

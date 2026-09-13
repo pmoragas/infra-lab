@@ -18,6 +18,14 @@ export type NodeType =
 export type Algorithm = 'roundRobin' | 'random' | 'leastConnections' | 'weightedRoundRobin' | 'ipHash'
 export type RateAlgorithm = 'tokenBucket' | 'fixedWindow' | 'slidingWindow'
 export type TrafficPattern = 'steady' | 'burst'
+export type RouteKind = 'read' | 'write'
+
+/** A kind of request, e.g. GET /products. Worlds send a mix of routes; links list the routes they carry. */
+export interface Route {
+  id: string
+  name: string
+  kind: RouteKind
+}
 
 export interface WorldConfig {
   name: string
@@ -28,6 +36,7 @@ export interface WorldConfig {
   clients: number // distinct client ids (for ipHash, rate limits, dns)
   keyspace: number // distinct request keys (for caches)
   timeoutMs: number // give up waiting for a response
+  mix?: Record<string, number> // route id → weight; missing or empty = requests carry no route
 }
 
 export interface LbConfig {
@@ -134,6 +143,7 @@ export interface EdgeConfig {
   latencyMs: number // time for a packet to cross this link
   lossPct: number // 0..100
   down?: boolean // link cut: everything on it is lost
+  routes?: string[] // route ids this link carries; missing or empty = every route
 }
 
 export interface LabEdge {
@@ -203,6 +213,7 @@ export interface Project {
   failures?: Failure[]
   guide?: Guide
   snapshots?: ResultSnapshot[]
+  routes?: Route[]
 }
 
 // Runtime only
@@ -215,6 +226,7 @@ export interface Packet {
   id: string
   clientId: string
   key: number
+  route?: string // route id; undefined = no route, every link carries it
   edgeId: string
   from: string
   to: string
@@ -278,6 +290,7 @@ export interface Journey {
   id: string
   clientId: string
   key: number
+  route?: string
   startedAt: number
   endedAt?: number
   outcome?: string // 'ok', 'timeout' or an error reason
@@ -312,6 +325,9 @@ export interface NodeContext {
   /** Turn a request into a response (or pass a response on) and send it one hop back along its path. */
   respond(nodeId: string, packet: Packet, status?: PacketStatus, error?: string): void
   targets(nodeId: string): string[]
+  /** Targets whose link carries `route`. Untagged links carry every route; a request without a route uses every link. */
+  targetsFor(nodeId: string, route?: string): string[]
+  routeKind(route?: string): RouteKind | undefined
   sources(nodeId: string): string[]
   nodeType(nodeId: string): NodeType | undefined
   nodeConfig(nodeId: string): NodeConfig | undefined

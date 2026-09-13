@@ -1,7 +1,7 @@
 import { useLabStore, type LabFlowNode } from '../store/useLabStore'
 import { sim } from '../sim/controller'
 import { LABEL } from '../engine/defaults'
-import type { Journey, RunWindow } from '../engine/types'
+import type { Journey, Route, RunWindow } from '../engine/types'
 import { summarizeEvents } from './chaosEvents'
 
 const ms = (v: number | undefined) => (v === undefined ? '–' : `${Math.round(v)} ms`)
@@ -109,7 +109,9 @@ function Compare() {
   )
 }
 
-function Overview({ journeys, onOpen }: { journeys: Journey[]; onOpen: (id: string) => void }) {
+const routeName = (routes: Route[], id: string | undefined) => (id === undefined ? undefined : (routes.find((r) => r.id === id)?.name ?? id))
+
+function Overview({ journeys, routes, onOpen }: { journeys: Journey[]; routes: Route[]; onOpen: (id: string) => void }) {
   const global = useLabStore((s) => s.sim?.stats.global)
   const simNow = useLabStore((s) => s.sim?.now ?? 0)
   const lat = global?.latency.count ? global.latency : undefined
@@ -138,6 +140,7 @@ function Overview({ journeys, onOpen }: { journeys: Journey[]; onOpen: (id: stri
           <thead>
             <tr>
               <th>Packet</th>
+              {routes.length > 0 && <th>Route</th>}
               <th>Latency</th>
               <th>Hops</th>
               <th>Outcome</th>
@@ -150,6 +153,7 @@ function Overview({ journeys, onOpen }: { journeys: Journey[]; onOpen: (id: stri
               .map((j) => (
                 <tr key={j.id} data-testid="journey-row" onClick={() => onOpen(j.id)}>
                   <td>{j.id}</td>
+                  {routes.length > 0 && <td data-testid="journey-route">{routeName(routes, j.route) ?? '–'}</td>}
                   <td>{ms(latency(j))}</td>
                   <td>{j.hops.length - 1}</td>
                   <td className={j.outcome === 'ok' ? '' : 'is-warn'}>{j.outcome}</td>
@@ -162,7 +166,19 @@ function Overview({ journeys, onOpen }: { journeys: Journey[]; onOpen: (id: stri
   )
 }
 
-function Timeline({ id, journey, nodes, onBack }: { id: string; journey: Journey | undefined; nodes: LabFlowNode[]; onBack: () => void }) {
+function Timeline({
+  id,
+  journey,
+  nodes,
+  routes,
+  onBack,
+}: {
+  id: string
+  journey: Journey | undefined
+  nodes: LabFlowNode[]
+  routes: Route[]
+  onBack: () => void
+}) {
   const label = (nodeId: string) => {
     const n = nodes.find((x) => x.id === nodeId)
     return n ? LABEL[n.type as keyof typeof LABEL] : nodeId
@@ -181,7 +197,7 @@ function Timeline({ id, journey, nodes, onBack }: { id: string; journey: Journey
             <span>{journey.outcome ?? 'in flight'}</span>
           </div>
           <div className="journey__meta">
-            client {journey.clientId} · key {journey.key}
+            {journey.route !== undefined ? `${routeName(routes, journey.route)} · ` : ''}client {journey.clientId} · key {journey.key}
             {journey.endedAt !== undefined ? ` · ${ms(latency(journey))}` : ''}
           </div>
           <ol className="timeline">
@@ -211,6 +227,7 @@ export function PacketsPanel() {
   const journeys = useLabStore((s) => s.sim?.journeys) ?? []
   const journeyId = useLabStore((s) => s.journeyId)
   const nodes = useLabStore((s) => s.nodes)
+  const routes = useLabStore((s) => s.routes)
   const { openJourney, openPanel } = useLabStore.getState()
   // Re-read every tick so an in-flight journey keeps growing.
   useLabStore((s) => s.sim?.tick)
@@ -225,9 +242,9 @@ export function PacketsPanel() {
         </button>
       </div>
       {journeyId ? (
-        <Timeline id={journeyId} journey={selected} nodes={nodes} onBack={() => openJourney(null)} />
+        <Timeline id={journeyId} journey={selected} nodes={nodes} routes={routes} onBack={() => openJourney(null)} />
       ) : (
-        <Overview journeys={journeys} onOpen={openJourney} />
+        <Overview journeys={journeys} routes={routes} onOpen={openJourney} />
       )}
     </section>
   )

@@ -1601,6 +1601,12 @@ select {
   height: 26px;
 }
 
+.drawer .routes__item select {
+  height: 26px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
 /* Narrow viewports: the palette collapses into a search icon that opens as
    an overlay instead of a fixed column, and the inspector floats over the
    canvas instead of squeezing it. */

@@ -21,5 +21,8 @@ describe('bundled examples', () => {
       expect(s.stats.nodes[n.id]?.in ?? 0, `${example.name}: ${n.id}`).toBeGreaterThan(0)
     }
     expect(s.stats.global.ok, `${example.name}: some requests succeed`).toBeGreaterThan(0)
+    for (const r of p.routes ?? []) {
+      expect(s.journeys.some((j) => j.route === r.id && j.outcome === 'ok'), `${example.name}: ${r.name} completes`).toBe(true)
+    }
   })
 })

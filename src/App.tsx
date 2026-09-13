@@ -8,6 +8,7 @@ import { Toolbar } from './ui/Toolbar'
 import { ConfigPanel } from './ui/ConfigPanel'
 import { PacketsPanel } from './ui/PacketsPanel'
 import { ChaosPanel } from './ui/ChaosPanel'
+import { RoutesPanel } from './ui/RoutesPanel'
 import { GuideCard } from './ui/GuideCard'
 import { ChaosBanner } from './ui/ChaosBanner'
 import { useLabStore } from './store/useLabStore'
@@ -47,6 +48,7 @@ export default function App() {
             <Canvas />
             {panel === 'packets' && <PacketsPanel />}
             {panel === 'chaos' && <ChaosPanel />}
+            {panel === 'routes' && <RoutesPanel />}
             <GuideCard key={projectId} />
             <ChaosBanner />
             <Toolbar />

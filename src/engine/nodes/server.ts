@@ -1,6 +1,6 @@
 import type { LabNode, NodeContext, NodeHandler, Packet, ServerConfig } from '../types'
 import { enter } from './util'
-import { cachePut, initCache, type CacheState } from './cache'
+import { cacheKey, cachePut, initCache, type CacheState } from './cache'
 import type { CacheConfig } from '../types'
 
 interface Job {
@@ -9,6 +9,9 @@ interface Job {
   finishAt: number
   waitingOn?: string // the dependency this job is waiting for
   sentAt: number
+  cache?: string // asked first; a hit skips the steps
+  steps: string[] // the other dependencies for this request's route, called one after another in link order
+  step: number // index of the next step to call
 }
 
 interface ServerState {
@@ -18,11 +21,12 @@ interface ServerState {
 
 const CACHE_TYPES = new Set(['cache', 'cdn'])
 
-function downstream(node: LabNode, ctx: NodeContext) {
-  const targets = ctx.targets(node.id)
+/** The dependencies a request calls: the links that carry its route. */
+function downstream(node: LabNode, packet: Packet, ctx: NodeContext) {
+  const targets = ctx.targetsFor(node.id, packet.route)
   return {
     cache: targets.find((t) => CACHE_TYPES.has(ctx.nodeType(t) ?? '')),
-    other: targets.find((t) => !CACHE_TYPES.has(ctx.nodeType(t) ?? '')),
+    steps: targets.filter((t) => !CACHE_TYPES.has(ctx.nodeType(t) ?? '')),
   }
 }
 
@@ -46,13 +50,22 @@ function callDependency(node: LabNode, job: Job, to: string, ctx: NodeContext, p
   ctx.send(node.id, to, packet)
 }
 
+/** Call the next step, or start processing once every step has answered. */
+function advance(node: LabNode, job: Job, ctx: NodeContext, packet = job.packet) {
+  packet.phase = 'request'
+  packet.status = 'ok'
+  packet.error = undefined
+  const to = job.steps[job.step]
+  if (to === undefined) startProcessing(node, job, ctx)
+  else callDependency(node, job, to, ctx, packet)
+}
+
 function admit(node: LabNode, packet: Packet, st: ServerState, ctx: NodeContext) {
-  const job: Job = { packet, stage: 'processing', finishAt: 0, sentAt: 0 }
+  const { cache, steps } = downstream(node, packet, ctx)
+  const job: Job = { packet, stage: 'processing', finishAt: 0, sentAt: 0, cache, steps, step: 0 }
   st.jobs.push(job)
-  const { cache, other } = downstream(node, ctx)
-  const next = cache ?? other
-  if (next) callDependency(node, job, next, ctx)
-  else startProcessing(node, job, ctx)
+  if (cache) callDependency(node, job, cache, ctx)
+  else advance(node, job, ctx)
 }
 
 function refresh(node: LabNode, st: ServerState, ctx: NodeContext) {
@@ -78,29 +91,28 @@ export const serverHandler: NodeHandler = {
       // Only the reply we're still waiting for counts; anything else arrived after a timeout.
       const job = st.jobs.find((j) => j.packet === packet && j.stage === 'downstream' && j.waitingOn === packet.from)
       if (!job) return
-      const { cache, other } = downstream(node, ctx)
-      const fromCache = cache !== undefined && packet.from === cache
-      if (fromCache && packet.status === 'error' && packet.error === 'miss' && other) {
-        packet.phase = 'request'
-        packet.status = 'ok'
-        packet.error = undefined
-        callDependency(node, job, other, ctx)
+      const fromCache = packet.from === job.cache
+      if (fromCache && packet.status === 'error' && packet.error === 'miss') {
+        advance(node, job, ctx)
         return
       }
-      if (packet.status === 'error' && !(fromCache && packet.error === 'miss')) {
+      if (packet.status === 'error') {
         st.jobs = st.jobs.filter((j) => j !== job)
         s.failed += 1
         ctx.respond(node.id, packet)
         refresh(node, st, ctx)
         return
       }
-      if (!fromCache && cache) {
-        // cache-aside: we fetched from the origin, so write it into the cache for next time
-        cachePut(ctx.state<CacheState>(cache, initCache), ctx.nodeConfig(cache) as CacheConfig, packet.key, ctx.now)
+      if (fromCache) {
+        startProcessing(node, job, ctx) // hit: no need to call the steps
+        return
       }
-      packet.status = 'ok'
-      packet.error = undefined
-      startProcessing(node, job, ctx)
+      if (job.step === 0 && job.cache && ctx.routeKind(packet.route) !== 'write') {
+        // cache-aside: we fetched from the origin, so write it into the cache for next time
+        cachePut(ctx.state<CacheState>(job.cache, initCache), ctx.nodeConfig(job.cache) as CacheConfig, cacheKey(packet), ctx.now)
+      }
+      job.step += 1
+      advance(node, job, ctx)
       return
     }
 
@@ -119,14 +131,11 @@ export const serverHandler: NodeHandler = {
     const s = ctx.stats(node.id)
 
     // A dependency that never answers (down, cut link, overloaded) must not hold a slot forever.
-    const { cache, other } = downstream(node, ctx)
     for (const job of st.jobs.filter((j) => j.stage === 'downstream')) {
-      const onCache = job.waitingOn !== undefined && job.waitingOn === cache
+      const onCache = job.waitingOn !== undefined && job.waitingOn === job.cache
       if (ctx.now - job.sentAt <= (onCache ? cfg.cacheTimeoutMs : cfg.backendTimeoutMs)) continue
-      if (onCache && other) {
-        callDependency(node, job, other, ctx, { ...copy(job.packet), phase: 'request', status: 'ok', error: undefined })
-      } else if (onCache) {
-        startProcessing(node, job, ctx)
+      if (onCache) {
+        advance(node, job, ctx, copy(job.packet)) // no answer from the cache counts as a miss
       } else {
         st.jobs = st.jobs.filter((j) => j !== job)
         s.failed += 1

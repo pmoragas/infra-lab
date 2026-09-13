@@ -42,6 +42,7 @@ function syncToEngine(next: LabStore, prev: LabStore) {
   }
   if (next.settings.speed !== prev.settings.speed) engine.setSpeed(next.settings.speed)
   if (next.failures !== prev.failures) engine.setFailures(next.failures)
+  if (next.routes !== prev.routes) engine.setRoutes(next.routes)
 }
 
 useLabStore.subscribe(syncToEngine)

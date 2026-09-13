@@ -2,9 +2,14 @@
   "id": "ecommerce",
   "name": "E-commerce storefront",
   "settings": { "seed": 7, "speed": 1 },
+  "routes": [
+    { "id": "browse", "name": "GET /products", "kind": "read" },
+    { "id": "checkout", "name": "POST /checkout", "kind": "write" }
+  ],
   "nodes": [
     { "id": "world-1", "type": "world", "position": { "x": 40, "y": 300 },
-      "config": { "name": "Storefront traffic", "rps": 9, "pattern": "burst", "burstEvery": 2500, "burstSize": 12, "clients": 40, "keyspace": 60, "timeoutMs": 15000 } },
+      "config": { "name": "Storefront traffic", "rps": 9, "pattern": "burst", "burstEvery": 2500, "burstSize": 12, "clients": 40, "keyspace": 60, "timeoutMs": 15000,
+        "mix": { "browse": 85, "checkout": 15 } } },
 
     { "id": "dns-1", "type": "dns", "position": { "x": 260, "y": 300 }, "config": { "latencyMs": 40, "ttlMs": 30000 } },
     { "id": "cdn-1", "type": "cdn", "position": { "x": 480, "y": 300 }, "config": { "maxEntries": 20, "ttlMs": 20000, "latencyMs": 10 } },
@@ -12,27 +17,28 @@
     { "id": "rateLimiter-1", "type": "rateLimiter", "position": { "x": 920, "y": 300 },
       "config": { "algorithm": "tokenBucket", "ratePerSec": 8, "burst": 16, "perClient": false } },
     { "id": "lb-1", "type": "lb", "position": { "x": 1140, "y": 300 },
-      "config": { "algorithm": "weightedRoundRobin", "weights": { "server-1": 3, "server-2": 3, "server-3": 3, "circuitBreaker-1": 1, "queue-1": 1 }, "timeoutMs": 4000, "retries": 1, "healthCheck": true } },
+      "config": { "algorithm": "roundRobin", "weights": {}, "timeoutMs": 4000, "retries": 1, "healthCheck": true } },
 
-    { "id": "server-1", "type": "server", "position": { "x": 1380, "y": 60 },
+    { "id": "server-1", "type": "server", "position": { "x": 1380, "y": 120 },
       "config": { "capacity": 8, "processingMs": 60, "queueSize": 20, "failureRate": 0.01, "jitterMs": 30, "warmupMs": 0, "down": false } },
-    { "id": "server-2", "type": "server", "position": { "x": 1380, "y": 180 },
+    { "id": "server-2", "type": "server", "position": { "x": 1380, "y": 300 },
       "config": { "capacity": 8, "processingMs": 60, "queueSize": 20, "failureRate": 0.01, "jitterMs": 30, "warmupMs": 0, "down": false } },
-    { "id": "server-3", "type": "server", "position": { "x": 1380, "y": 300 },
+    { "id": "server-3", "type": "server", "position": { "x": 1380, "y": 480 },
       "config": { "capacity": 8, "processingMs": 60, "queueSize": 20, "failureRate": 0.01, "jitterMs": 30, "warmupMs": 3000, "down": false } },
-    { "id": "circuitBreaker-1", "type": "circuitBreaker", "position": { "x": 1380, "y": 420 },
-      "config": { "failureThreshold": 5, "windowMs": 10000, "openMs": 5000 } },
-    { "id": "queue-1", "type": "queue", "position": { "x": 1380, "y": 540 }, "config": { "maxSize": 50 } },
 
-    { "id": "cache-1", "type": "cache", "position": { "x": 1640, "y": 120 }, "config": { "maxEntries": 200, "ttlMs": 10000, "latencyMs": 3 } },
-    { "id": "database-1", "type": "database", "position": { "x": 1640, "y": 260 },
+    { "id": "cache-1", "type": "cache", "position": { "x": 1640, "y": 60 }, "config": { "maxEntries": 200, "ttlMs": 10000, "latencyMs": 3 } },
+    { "id": "database-1", "type": "database", "position": { "x": 1640, "y": 200 },
       "config": { "capacity": 4, "latencyMs": 40, "replicas": 2, "readRatio": 0.9, "down": false } },
-    { "id": "thirdParty-1", "type": "thirdParty", "position": { "x": 1640, "y": 420 },
+    { "id": "circuitBreaker-1", "type": "circuitBreaker", "position": { "x": 1640, "y": 340 },
+      "config": { "failureThreshold": 5, "windowMs": 10000, "openMs": 5000 } },
+    { "id": "queue-1", "type": "queue", "position": { "x": 1640, "y": 480 }, "config": { "maxSize": 50 } },
+
+    { "id": "thirdParty-1", "type": "thirdParty", "position": { "x": 1900, "y": 340 },
       "config": { "latencyMs": 350, "jitterMs": 250, "failureRate": 0.05, "down": false } },
-    { "id": "consumer-1", "type": "consumer", "position": { "x": 1640, "y": 540 },
+    { "id": "consumer-1", "type": "consumer", "position": { "x": 1900, "y": 480 },
       "config": { "capacity": 2, "processingMs": 400, "failureRate": 0.3, "maxRetries": 2 } },
 
-    { "id": "queue-2", "type": "queue", "position": { "x": 1900, "y": 540 }, "config": { "maxSize": 100 } }
+    { "id": "queue-2", "type": "queue", "position": { "x": 2160, "y": 480 }, "config": { "maxSize": 100 } }
   ],
   "edges": [
     { "id": "e-world-1-dns-1", "source": "world-1", "target": "dns-1", "config": { "latencyMs": 30, "lossPct": 0 } },
@@ -44,15 +50,19 @@
     { "id": "e-lb-1-server-1", "source": "lb-1", "target": "server-1", "config": { "latencyMs": 5, "lossPct": 0 } },
     { "id": "e-lb-1-server-2", "source": "lb-1", "target": "server-2", "config": { "latencyMs": 5, "lossPct": 0 } },
     { "id": "e-lb-1-server-3", "source": "lb-1", "target": "server-3", "config": { "latencyMs": 5, "lossPct": 0 } },
-    { "id": "e-lb-1-circuitBreaker-1", "source": "lb-1", "target": "circuitBreaker-1", "config": { "latencyMs": 5, "lossPct": 0 } },
-    { "id": "e-lb-1-queue-1", "source": "lb-1", "target": "queue-1", "config": { "latencyMs": 5, "lossPct": 0 } },
 
-    { "id": "e-server-1-cache-1", "source": "server-1", "target": "cache-1", "config": { "latencyMs": 2, "lossPct": 0 } },
-    { "id": "e-server-2-cache-1", "source": "server-2", "target": "cache-1", "config": { "latencyMs": 2, "lossPct": 0 } },
-    { "id": "e-server-3-cache-1", "source": "server-3", "target": "cache-1", "config": { "latencyMs": 2, "lossPct": 0 } },
-    { "id": "e-server-1-database-1", "source": "server-1", "target": "database-1", "config": { "latencyMs": 5, "lossPct": 0 } },
-    { "id": "e-server-2-database-1", "source": "server-2", "target": "database-1", "config": { "latencyMs": 5, "lossPct": 0 } },
-    { "id": "e-server-3-database-1", "source": "server-3", "target": "database-1", "config": { "latencyMs": 5, "lossPct": 0 } },
+    { "id": "e-server-1-cache-1", "source": "server-1", "target": "cache-1", "config": { "latencyMs": 2, "lossPct": 0, "routes": ["browse"] } },
+    { "id": "e-server-2-cache-1", "source": "server-2", "target": "cache-1", "config": { "latencyMs": 2, "lossPct": 0, "routes": ["browse"] } },
+    { "id": "e-server-3-cache-1", "source": "server-3", "target": "cache-1", "config": { "latencyMs": 2, "lossPct": 0, "routes": ["browse"] } },
+    { "id": "e-server-1-database-1", "source": "server-1", "target": "database-1", "config": { "latencyMs": 5, "lossPct": 0, "routes": ["browse", "checkout"] } },
+    { "id": "e-server-2-database-1", "source": "server-2", "target": "database-1", "config": { "latencyMs": 5, "lossPct": 0, "routes": ["browse", "checkout"] } },
+    { "id": "e-server-3-database-1", "source": "server-3", "target": "database-1", "config": { "latencyMs": 5, "lossPct": 0, "routes": ["browse", "checkout"] } },
+    { "id": "e-server-1-circuitBreaker-1", "source": "server-1", "target": "circuitBreaker-1", "config": { "latencyMs": 5, "lossPct": 0, "routes": ["checkout"] } },
+    { "id": "e-server-2-circuitBreaker-1", "source": "server-2", "target": "circuitBreaker-1", "config": { "latencyMs": 5, "lossPct": 0, "routes": ["checkout"] } },
+    { "id": "e-server-3-circuitBreaker-1", "source": "server-3", "target": "circuitBreaker-1", "config": { "latencyMs": 5, "lossPct": 0, "routes": ["checkout"] } },
+    { "id": "e-server-1-queue-1", "source": "server-1", "target": "queue-1", "config": { "latencyMs": 5, "lossPct": 0, "routes": ["checkout"] } },
+    { "id": "e-server-2-queue-1", "source": "server-2", "target": "queue-1", "config": { "latencyMs": 5, "lossPct": 0, "routes": ["checkout"] } },
+    { "id": "e-server-3-queue-1", "source": "server-3", "target": "queue-1", "config": { "latencyMs": 5, "lossPct": 0, "routes": ["checkout"] } },
 
     { "id": "e-circuitBreaker-1-thirdParty-1", "source": "circuitBreaker-1", "target": "thirdParty-1", "config": { "latencyMs": 120, "lossPct": 1 } },
 

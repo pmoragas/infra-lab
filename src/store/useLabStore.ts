@@ -9,12 +9,12 @@ import {
   type EdgeChange,
   type Connection,
 } from '@xyflow/react'
-import type { EdgeConfig, Failure, Guide, NodeConfig, NodeType, Project, ProjectSettings, ResultSnapshot, RunWindow, SimState } from '../engine/types'
+import type { EdgeConfig, Failure, Guide, NodeConfig, NodeType, Project, ProjectSettings, ResultSnapshot, Route, RunWindow, SimState, WorldConfig } from '../engine/types'
 import { DEFAULT_CONFIG, DEFAULT_EDGE, DEFAULT_SETTINGS, LABEL, withDefaults } from '../engine/defaults'
 
 export type LabFlowNode = Node<{ config: NodeConfig }, NodeType>
 export type LabFlowEdge = Edge<{ config: EdgeConfig }>
-export type Panel = 'packets' | 'chaos'
+export type Panel = 'packets' | 'chaos' | 'routes'
 
 /** The undoable part of a project. */
 interface Snapshot {
@@ -23,10 +23,19 @@ interface Snapshot {
   nodes: LabFlowNode[]
   edges: LabFlowEdge[]
   failures: Failure[]
+  routes: Route[]
 }
 
 const counters: Record<string, number> = {}
 const newId = (type: NodeType) => `${type}-${(counters[type] = (counters[type] ?? 0) + 1)}`
+
+/** Route ids come from the name ("GET /products" → "get-products") and stay unique. */
+function routeId(name: string, taken: Route[]): string {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'route'
+  let id = base
+  for (let n = 2; taken.some((r) => r.id === id); n++) id = `${base}-${n}`
+  return id
+}
 
 const HISTORY_LIMIT = 100
 const COALESCE_MS = 1000
@@ -39,6 +48,7 @@ export interface LabStore {
   nodes: LabFlowNode[]
   edges: LabFlowEdge[]
   failures: Failure[]
+  routes: Route[] // kinds of request Worlds can send and links can carry
   guide: Guide | null // lesson text for presets; not undoable
   snapshots: ResultSnapshot[] // pinned run results, oldest first
   selectedId: string | null // node id
@@ -61,6 +71,10 @@ export interface LabStore {
   addFailure(failure: Omit<Failure, 'id'>): string
   updateFailure(id: string, patch: Partial<Omit<Failure, 'id'>>): void
   removeFailure(id: string): void
+  addRoute(route: Omit<Route, 'id'>): string
+  updateRoute(id: string, patch: Partial<Omit<Route, 'id'>>): void
+  /** Also drops the route from every link tag and World mix. */
+  removeRoute(id: string): void
   /** Pin the whole current run's results; null when nothing has completed yet. */
   addSnapshot(): string | null
   /** Pin the results of one fast-run window. */
@@ -89,7 +103,7 @@ export const useLabStore = create<LabStore>((set, get) => {
 
   const snap = (): Snapshot => {
     const s = get()
-    return { name: s.name, settings: s.settings, nodes: s.nodes, edges: s.edges, failures: s.failures }
+    return { name: s.name, settings: s.settings, nodes: s.nodes, edges: s.edges, failures: s.failures, routes: s.routes }
   }
 
   /** Save an undo point before a change. Same-key changes in quick succession (typing in a field) share one point. */
@@ -140,6 +154,7 @@ export const useLabStore = create<LabStore>((set, get) => {
     nodes: [],
     edges: [],
     failures: [],
+    routes: [],
     guide: null,
     snapshots: [],
     selectedId: null,
@@ -230,6 +245,36 @@ export const useLabStore = create<LabStore>((set, get) => {
     removeFailure(id) {
       record()
       set((s) => ({ failures: s.failures.filter((f) => f.id !== id) }))
+    },
+
+    addRoute(route) {
+      record()
+      const id = routeId(route.name, get().routes)
+      set((s) => ({ routes: [...s.routes, { ...route, id }] }))
+      return id
+    },
+
+    updateRoute(id, patch) {
+      record(`route:${id}:${keys(patch)}`)
+      set((s) => ({ routes: s.routes.map((r) => (r.id === id ? { ...r, ...patch } : r)) }))
+    },
+
+    removeRoute(id) {
+      record()
+      set((s) => ({
+        routes: s.routes.filter((r) => r.id !== id),
+        edges: s.edges.map((e) => {
+          const routes = e.data?.config.routes
+          if (!routes?.includes(id)) return e
+          return { ...e, data: { config: { ...DEFAULT_EDGE, ...e.data?.config, routes: routes.filter((r) => r !== id) } } }
+        }),
+        nodes: s.nodes.map((n) => {
+          const mix = n.type === 'world' ? (n.data.config as WorldConfig).mix : undefined
+          if (!mix || !(id in mix)) return n
+          const { [id]: _gone, ...rest } = mix
+          return { ...n, data: { config: { ...n.data.config, mix: rest } as NodeConfig } }
+        }),
+      }))
     },
 
     addSnapshot() {
@@ -343,6 +388,7 @@ export const useLabStore = create<LabStore>((set, get) => {
         nodes: s.nodes.map((n) => ({ id: n.id, type: n.type!, position: n.position, config: n.data.config })),
         edges: s.edges.map((e) => ({ id: e.id, source: e.source, target: e.target, config: e.data?.config })),
         failures: s.failures,
+        ...(s.routes.length > 0 ? { routes: s.routes } : {}),
         ...(s.guide ? { guide: s.guide } : {}),
         ...(s.snapshots.length > 0 ? { snapshots: s.snapshots } : {}),
       }
@@ -373,6 +419,7 @@ export const useLabStore = create<LabStore>((set, get) => {
           data: { config: { ...DEFAULT_EDGE, ...e.config } },
         })),
         failures: project.failures ?? [],
+        routes: project.routes ?? [],
         guide: project.guide ?? null,
         snapshots: project.snapshots ?? [],
         selectedId: null,

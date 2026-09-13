@@ -20,6 +20,7 @@ Features:
 - **Export / Import:** project JSON, or a PNG / SVG image of the graph. Light and dark theme.
 - **Lessons:** seven presets, each with a question and steps: dead server, slow server, cache-aside, cache flush, rate limiter, circuit breaker, queue vs direct call. Open one from the empty sheet or Header → Examples.
 - **Fast run and compare:** each ⏩ 60 s simulates a minute instantly and adds a column with just that minute's results (success, failed, p50 / p95 / p99, events) to the Packets panel, so you can change one thing and press it again. Save whole run pins a live run.
+- **Routes:** define kinds of request (e.g. `GET /products`, read; `POST /checkout`, write) in the **Routes** panel. Each World sends a traffic mix; each link can be ticked to carry only some routes (untagged = all). A server calls the linked dependencies that carry the request's route one after another (cache first, a hit skips the rest); the database takes read vs write from the route; caches pass writes through. Without routes everything behaves as before.
 
 Plan: Notion → App Projects → Infra Lab (RADIO).
 
@@ -32,14 +33,14 @@ Vite + React + TypeScript · React Flow (`@xyflow/react`) · Zustand · html-to-
 - `src/engine/` — pure TS simulation engine, no DOM. `nodes/` holds one handler per component type; `defaults.ts` the per-type defaults.
 - `src/sim/` — bridges the engine to the store; pushes live edits into a running engine.
 - `src/canvas/` — React Flow canvas, node component, packet layer.
-- `src/ui/` — Header, Sidebar, Toolbar (run bar), ConfigPanel (driven by `configSchema.ts`), PacketsPanel (with compare), ChaosPanel, GuideCard, EmptyState, image export, bundled examples (`examples.ts`).
+- `src/ui/` — Header, Sidebar, Toolbar (run bar), ConfigPanel (driven by `configSchema.ts`), PacketsPanel (with compare), ChaosPanel, RoutesPanel, GuideCard, EmptyState, image export, bundled examples (`examples.ts`).
 - `src/store/` — Zustand store (project graph, failures, undo/redo history, latest sim snapshot).
 - `src/persistence/` — saved projects in localStorage, URL routing and autosave (`autosave.ts`), share links, JSON export/import.
 - `e2e/` — Playwright specs, one per milestone.
 
 ## Examples
 
-`examples/ecommerce.json` — one storefront system, single World: DNS → CDN → gateway → rate limiter → LB, which fans out to cache-aside servers backed by a replicated DB, a circuit breaker guarding a payment API, and an order-events queue with a consumer and DLQ. Header → Import.
+`examples/ecommerce.json` — one storefront system, single World sending 85% `GET /products` and 15% `POST /checkout`: DNS → CDN → gateway → rate limiter → LB → three servers. Browsing is cache-aside over a replicated DB; a checkout writes to the DB, then calls a payment API behind a circuit breaker, then publishes to an order-events queue with a consumer and DLQ. Header → Examples.
 
 `examples/url-shortener.json` — read-heavy redirect service: DNS → CDN (hot links at the edge) → gateway → per-client rate limiter → LB, which fans out to two servers with cache-aside over a database with read replicas, plus a click-analytics queue with a consumer and DLQ.
 

@@ -3,7 +3,7 @@ import { useLabStore } from './useLabStore'
 import type { SimState } from '../engine/types'
 
 beforeEach(() => {
-  useLabStore.setState({ nodes: [], edges: [], failures: [], snapshots: [], selectedId: null, selectedEdgeId: null, sim: null, past: [], future: [] })
+  useLabStore.setState({ nodes: [], edges: [], failures: [], routes: [], snapshots: [], selectedId: null, selectedEdgeId: null, sim: null, past: [], future: [] })
 })
 
 const conn = (source: string, target: string) => ({ source, target, sourceHandle: null, targetHandle: null })
@@ -189,5 +189,37 @@ describe('undo / redo', () => {
     expect(useLabStore.getState().toProject().guide).toEqual(guide)
     s.loadProject({ id: 'p3', name: 'plain', settings: { seed: 1, speed: 1 }, nodes: [], edges: [] })
     expect('guide' in useLabStore.getState().toProject()).toBe(false)
+  })
+})
+
+describe('routes', () => {
+  it('ids come from the name and stay unique; projects without routes save without the field', () => {
+    const s = useLabStore.getState()
+    expect('routes' in s.toProject()).toBe(false)
+    expect(s.addRoute({ name: 'GET /products', kind: 'read' })).toBe('get-products')
+    expect(s.addRoute({ name: 'GET /products', kind: 'read' })).toBe('get-products-2')
+    expect(useLabStore.getState().toProject().routes).toHaveLength(2)
+  })
+
+  it('removing a route drops it from link tags and World mixes, and undo brings it back', () => {
+    const s = useLabStore.getState()
+    const browse = s.addRoute({ name: 'browse', kind: 'read' })
+    const checkout = s.addRoute({ name: 'checkout', kind: 'write' })
+    const w = s.addNode('world', { x: 0, y: 0 })
+    const srv = s.addNode('server', { x: 0, y: 0 })
+    s.onConnect(conn(w, srv))
+    s.updateNodeConfig(w, { mix: { [browse]: 80, [checkout]: 20 } })
+    s.updateEdgeConfig(`e-${w}-${srv}`, { routes: [browse, checkout] })
+
+    s.removeRoute(checkout)
+    let p = useLabStore.getState().toProject()
+    expect(p.routes?.map((r) => r.id)).toEqual([browse])
+    expect(p.edges[0].config?.routes).toEqual([browse])
+    expect((p.nodes[0].config as { mix?: Record<string, number> }).mix).toEqual({ [browse]: 80 })
+
+    useLabStore.getState().undo()
+    p = useLabStore.getState().toProject()
+    expect(p.routes?.map((r) => r.id)).toEqual([browse, checkout])
+    expect(p.edges[0].config?.routes).toEqual([browse, checkout])
   })
 })

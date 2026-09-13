@@ -1,4 +1,4 @@
-import type { EdgeConfig, NodeConfig, NodeType } from '../engine/types'
+import type { EdgeConfig, NodeConfig, NodeType, Route } from '../engine/types'
 
 export type Field =
   | { key: string; label: string; type: 'number'; min?: number; max?: number; step?: number; hint?: string }
@@ -6,6 +6,8 @@ export type Field =
   | { key: string; label: string; type: 'boolean'; hint?: string }
   | { key: string; label: string; type: 'text'; hint?: string }
   | { key: string; label: string; type: 'weights'; hint?: string } // LB: one number per target
+  | { key: string; label: string; type: 'mix'; hint?: string } // World: one weight per project route
+  | { key: string; label: string; type: 'routes'; hint?: string } // Link: one checkbox per project route
 
 const pct = { min: 0, max: 1, step: 0.05 }
 
@@ -27,6 +29,7 @@ export const NODE_FIELDS: Record<NodeType, Field[]> = {
     { key: 'clients', label: 'Distinct clients', type: 'number', min: 1, step: 1, hint: 'Used by IP hash, per-client rate limits, DNS' },
     { key: 'keyspace', label: 'Distinct keys', type: 'number', min: 1, step: 1, hint: 'Fewer keys → more cache hits' },
     { key: 'timeoutMs', label: 'Client timeout (ms)', type: 'number', min: 100, step: 100 },
+    { key: 'mix', label: 'Traffic mix', type: 'mix', hint: 'Relative weight of each route. All zero = requests carry no route.' },
   ],
   lb: [
     {
@@ -117,6 +120,7 @@ export const NODE_FIELDS: Record<NodeType, Field[]> = {
 export const EDGE_FIELDS: Field[] = [
   { key: 'latencyMs', label: 'Latency (ms)', type: 'number', min: 1, step: 50 },
   { key: 'lossPct', label: 'Packet loss (%)', type: 'number', min: 0, max: 100, step: 1 },
+  { key: 'routes', label: 'Carries', type: 'routes', hint: 'None ticked = every route' },
 ]
 
 /** One-line summary shown under the node title. */
@@ -152,3 +156,9 @@ export function summary(type: NodeType, c: NodeConfig): string {
 }
 
 export const EDGE_SUMMARY = (c: EdgeConfig) => `${c.latencyMs}ms${c.lossPct ? ` · ${c.lossPct}% loss` : ''}`
+
+/** Which routes a link carries, by name; empty when it carries everything. */
+export function carriedRoutes(c: EdgeConfig | undefined, routes: Route[]): string[] {
+  const ids = c?.routes ?? []
+  return routes.filter((r) => ids.includes(r.id)).map((r) => r.name)
+}

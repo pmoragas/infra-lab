@@ -6,7 +6,7 @@ import { PacketLayer } from './PacketLayer'
 import type { NodeType } from '../engine/types'
 import { LABEL } from '../engine/defaults'
 import { EmptyState } from '../ui/EmptyState'
-import { serverLinkLabels } from '../ui/explain'
+import { linkLabels } from '../ui/explain'
 
 const nodeTypes = Object.fromEntries(Object.keys(LABEL).map((t) => [t, LabNode])) as Record<NodeType, typeof LabNode>
 
@@ -15,6 +15,7 @@ export const DRAG_MIME = 'application/x-infra-lab-node'
 export function Canvas() {
   const nodes = useLabStore((s) => s.nodes)
   const edges = useLabStore((s) => s.edges)
+  const routes = useLabStore((s) => s.routes)
   const fitRequest = useLabStore((s) => s.fitRequest)
   const cutKey = useLabStore((s) => (s.sim?.chaos.cut ?? []).join(','))
   const onNodesChange = useLabStore((s) => s.onNodesChange)
@@ -41,13 +42,13 @@ export function Canvas() {
 
   const shownEdges = useMemo(() => {
     const cut = new Set(cutKey ? cutKey.split(',') : [])
-    const labels = serverLinkLabels(nodes, edges)
+    const labels = linkLabels(nodes, edges, routes)
     return edges.map((e) => {
       const className = cut.has(e.id) || e.data?.config.down ? 'edge--cut' : undefined
       const label = labels.get(e.id)
       return className || label ? { ...e, className, label } : e
     })
-  }, [edges, nodes, cutKey])
+  }, [edges, nodes, routes, cutKey])
 
   const onDragOver = useCallback((e: DragEvent) => {
     e.preventDefault()

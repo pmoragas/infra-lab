@@ -69,6 +69,13 @@ export function Toolbar() {
       >
         Chaos
       </button>
+      <button
+        className={`btn${panel === 'routes' ? ' btn--active' : ''}`}
+        data-testid="btn-routes"
+        onClick={() => openPanel(panel === 'routes' ? null : 'routes')}
+      >
+        Routes
+      </button>
       <span className="toolbar__divider" />
       <div className="toolbar__live">
         <span className={`toolbar__dot${status === 'running' ? ' toolbar__dot--running' : ''}`} />

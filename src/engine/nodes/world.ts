@@ -7,6 +7,19 @@ interface WorldState {
   pending: Map<string, number> // packet id → sent at
 }
 
+/** Pick a route id by weight; undefined without a mix. */
+function pickRoute(mix: WorldConfig['mix'], random: () => number): string | undefined {
+  const weights = Object.entries(mix ?? {}).filter(([, w]) => w > 0)
+  const total = weights.reduce((sum, [, w]) => sum + w, 0)
+  if (total === 0) return undefined
+  let r = random() * total
+  for (const [id, w] of weights) {
+    if (r < w) return id
+    r -= w
+  }
+  return weights[weights.length - 1][0]
+}
+
 export const worldHandler: NodeHandler = {
   onPacket(node, packet, ctx) {
     const st = ctx.state<WorldState>(node.id, () => ({ acc: 0, sinceBurst: 0, pending: new Map() }))
@@ -30,6 +43,7 @@ export const worldHandler: NodeHandler = {
         id: ctx.nextId(),
         clientId: `c${1 + Math.floor(ctx.random() * Math.max(1, cfg.clients))}`,
         key: Math.floor(ctx.random() * Math.max(1, cfg.keyspace)),
+        route: pickRoute(cfg.mix, ctx.random),
         edgeId: '',
         from: node.id,
         to: '',
@@ -40,7 +54,7 @@ export const worldHandler: NodeHandler = {
         path: [node.id],
       }
       ctx.global.sent += 1
-      if (ctx.targets(node.id).length === 0) {
+      if (ctx.targetsFor(node.id, packet.route).length === 0) {
         ctx.stats(node.id).failed += 1
         ctx.complete(packet, 'no-route')
         return

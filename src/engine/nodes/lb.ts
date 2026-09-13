@@ -18,7 +18,7 @@ const RETRIABLE = new Set(['failed', 'timeout'])
 
 function pick(node: LabNode, packet: Packet, ctx: NodeContext, st: LbState, exclude?: string): string | undefined {
   const cfg = node.config as LbConfig
-  let targets = ctx.targets(node.id).sort()
+  let targets = ctx.targetsFor(node.id, packet.route).sort()
   if (cfg.healthCheck) targets = targets.filter((t) => !ctx.isDown(t))
   if (exclude && targets.length > 1) targets = targets.filter((t) => t !== exclude)
   if (targets.length === 0) return undefined

@@ -2,18 +2,20 @@ import { useLabStore } from '../store/useLabStore'
 import { LABEL } from '../engine/defaults'
 import { EDGE_FIELDS, NODE_FIELDS, type Field } from './configSchema'
 import { LINK_EXPLAIN, ROUTING } from './explain'
-import type { NodeStats, NodeType } from '../engine/types'
+import type { NodeStats, NodeType, Route } from '../engine/types'
 
 function FieldInput({
   field,
   value,
   onChange,
   targets,
+  routes = [],
 }: {
   field: Field
   value: unknown
   onChange: (v: unknown) => void
   targets?: string[]
+  routes?: Route[]
 }) {
   const id = `cfg-${field.key}`
   switch (field.type) {
@@ -85,6 +87,50 @@ function FieldInput({
                 value={weights[t] ?? 1}
                 onChange={(e) => onChange({ ...weights, [t]: Math.max(0, Number(e.target.value) || 0) })}
               />
+            </label>
+          ))}
+          {field.hint && <span className="config__hint">{field.hint}</span>}
+        </div>
+      )
+    }
+    case 'mix': {
+      const mix = (value as Record<string, number>) ?? {}
+      if (routes.length === 0) return null
+      return (
+        <div className="config__weights">
+          <span>{field.label}</span>
+          {routes.map((r) => (
+            <label key={r.id} className="config__weight">
+              {r.name}
+              <input
+                data-testid={`cfg-mix-${r.id}`}
+                type="number"
+                min={0}
+                step={1}
+                value={mix[r.id] ?? 0}
+                onChange={(e) => onChange({ ...mix, [r.id]: Math.max(0, Number(e.target.value) || 0) })}
+              />
+            </label>
+          ))}
+          {field.hint && <span className="config__hint">{field.hint}</span>}
+        </div>
+      )
+    }
+    case 'routes': {
+      const chosen = (value as string[]) ?? []
+      if (routes.length === 0) return null
+      return (
+        <div className="config__weights">
+          <span>{field.label}</span>
+          {routes.map((r) => (
+            <label key={r.id} className="config__check">
+              <input
+                data-testid={`cfg-route-${r.id}`}
+                type="checkbox"
+                checked={chosen.includes(r.id)}
+                onChange={(e) => onChange(e.target.checked ? [...chosen, r.id] : chosen.filter((id) => id !== r.id))}
+              />
+              {r.name}
             </label>
           ))}
           {field.hint && <span className="config__hint">{field.hint}</span>}
@@ -165,6 +211,7 @@ export function ConfigPanel() {
   const node = useLabStore((s) => s.nodes.find((n) => n.id === s.selectedId))
   const edge = useLabStore((s) => s.edges.find((e) => e.id === s.selectedEdgeId))
   const edges = useLabStore((s) => s.edges)
+  const routes = useLabStore((s) => s.routes)
   const targets = node ? edges.filter((e) => e.source === node.id).map((e) => e.target) : []
   const updateNode = useLabStore((s) => s.updateNodeConfig)
   const updateEdge = useLabStore((s) => s.updateEdgeConfig)
@@ -178,7 +225,7 @@ export function ConfigPanel() {
       <aside className="config" data-testid="config-panel" data-edge-id={edge.id}>
         <Head title="Link" sub={`${edge.source} → ${edge.target}`} explain={LINK_EXPLAIN} />
         {EDGE_FIELDS.map((f) => (
-          <FieldInput key={f.key} field={f} value={(cfg as unknown as Record<string, unknown>)[f.key]} onChange={(v) => updateEdge(edge.id, { [f.key]: v })} />
+          <FieldInput key={f.key} field={f} value={(cfg as unknown as Record<string, unknown>)[f.key]} routes={routes} onChange={(v) => updateEdge(edge.id, { [f.key]: v })} />
         ))}
         <ChaosToggle
           down={cfg.down === true}
@@ -204,7 +251,7 @@ export function ConfigPanel() {
       {NODE_FIELDS[type]
         .filter((f) => f.type !== 'weights' || cfg.algorithm === 'weightedRoundRobin')
         .map((f) => (
-          <FieldInput key={f.key} field={f} value={cfg[f.key]} targets={targets} onChange={(v) => updateNode(node.id, { [f.key]: v })} />
+          <FieldInput key={f.key} field={f} value={cfg[f.key]} targets={targets} routes={routes} onChange={(v) => updateNode(node.id, { [f.key]: v })} />
         ))}
       <ChaosToggle
         down={cfg.down === true}

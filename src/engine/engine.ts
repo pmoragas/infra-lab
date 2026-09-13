@@ -15,6 +15,7 @@ import type {
   Packet,
   PacketStatus,
   Project,
+  Route,
   RunWindow,
   SimState,
   Stats,
@@ -46,6 +47,7 @@ export interface Engine {
   updateEdgeConfig(id: string, patch: Partial<LabEdge['config']>): void
   setSpeed(speed: number): void
   setFailures(failures: Failure[]): void
+  setRoutes(routes: Route[]): void
   /** Advance sim time by `ms` as fast as possible, pause, publish one snapshot, and return that window's results. */
   runFor(ms: number): RunWindow
   /** A packet's journey so far, whether still in flight or recently completed. */
@@ -94,6 +96,7 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
   const edges = new Map<string, LabEdge>()
   for (const n of project.nodes) nodes.set(n.id, { ...n, config: withDefaults(n.type, n.config as never) })
   for (const e of project.edges) edges.set(e.id, { ...e, config: { ...DEFAULT_EDGE, ...e.config } })
+  let routeKinds = new Map((project.routes ?? []).map((r) => [r.id, r.kind]))
 
   let status: SimState['status'] = 'idle'
   let tick = 0
@@ -138,7 +141,7 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
   function journeyFor(packet: Packet, from: string): Journey | undefined {
     let j = journeys.get(packet.id)
     if (!j && packet.phase === 'request' && packet.path.length <= 1) {
-      j = { id: packet.id, clientId: packet.clientId, key: packet.key, startedAt: packet.createdAt, hops: [{ node: from, at: now, phase: 'request' }] }
+      j = { id: packet.id, clientId: packet.clientId, key: packet.key, route: packet.route, startedAt: packet.createdAt, hops: [{ node: from, at: now, phase: 'request' }] }
       journeys.set(packet.id, j)
     }
     return j
@@ -226,6 +229,16 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
       for (const e of edges.values()) if (e.source === nodeId) out.push(e.target)
       return out
     },
+    targetsFor(nodeId, route) {
+      const out: string[] = []
+      for (const e of edges.values()) {
+        if (e.source !== nodeId) continue
+        const carried = e.config?.routes
+        if (!route || !carried?.length || carried.includes(route)) out.push(e.target)
+      }
+      return out
+    },
+    routeKind: (route) => (route ? routeKinds.get(route) : undefined),
     sources(nodeId) {
       const out: string[] = []
       for (const e of edges.values()) if (e.target === nodeId) out.push(e.source)
@@ -457,6 +470,9 @@ export function createEngine(project: Project, opts: EngineOptions = {}): Engine
     },
     setFailures(list) {
       failures = [...list]
+    },
+    setRoutes(routes) {
+      routeKinds = new Map(routes.map((r) => [r.id, r.kind]))
     },
     getJourney(id) {
       const j = journeys.get(id) ?? completed.find((c) => c.id === id)
